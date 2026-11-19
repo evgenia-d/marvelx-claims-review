@@ -1,0 +1,17 @@
+.DS_Store
+node_modules/
+dist/
+.env
+e2e/screenshots/
+
+test-results/
+playwright-report/
+
+# Local tooling
+.superpowers/
+.claude/settings.local.json
+__pycache__/
+*.log
+coverage/
+.env.*
+!.env.example

@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+@theme {
+  --color-*: initial;
+  --text-*: initial;
+  --shadow-*: initial;
+  --radius-*: initial;
+  --spacing: 4px;
+
+  /* Ground, back to front */
+  --color-ground: #F4F6FA;      /* page, panes, document panel, secondary-button hover */
+  --color-surface: #FFFFFF;     /* header, open field, cards, inputs, undecided value box */
+  --color-subtle: #E9EDF5;      /* hover, segment track, grey tags, "Not decided" pill, skeleton */
+  /* Lines */
+  --color-line: #DFE4EE;        /* dividers, pane and card edges */
+  --color-line-strong: #C3CBDA; /* control edges: value box, secondary button, input */
+  /* Ink */
+  --color-ink: #0F1D3A;         /* names, values, headlines; also the selected-row ring */
+  --color-ink-2: #3E4A66;       /* sentences, agent line, icon buttons */
+  --color-ink-3: #5A6580;       /* labels, counts, meta, grey ring glyph */
+  /* Action: press this (solid fill only) */
+  --color-primary: #2B5BDB;
+  --color-primary-hover: #2149B8;
+  --color-on-primary: #FFFFFF;
+  /* You: this is yours (tint + border, never a solid fill for a state) */
+  --color-you: #2B5BDB;         /* your values, pill text, check glyph, progress */
+  --color-on-you: #FFFFFF;      /* the check inside the blue circle */
+  --color-you-tint: #EAF0FD;
+  --color-you-line: #BDD0F7;
+  /* Needs you */
+  --color-attn: #A24B00;        /* ! glyph, orange tags and counts, alert text, notes */
+  --color-attn-tint: #FCF0E2;
+  --color-attn-line: #EEC89E;
+  /* Evidence and focus */
+  --color-cite: #F9E3A1;        /* cited-text highlight in the document */
+  --color-focus: #0F1D3A;       /* 2px ring, 2px offset */
+
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-serif: "Source Serif 4", Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --text-xs: 11px;   --text-xs--line-height: 14px;   /* row labels, tags, counts, kbd, eyebrow */
+  --text-sm: 12px;   --text-sm--line-height: 16px;   /* agent line, pills, chips, step notes, row values, quotes */
+  --text-base: 13px; --text-base--line-height: 18px; /* body, buttons, details summaries */
+  --text-md: 14px;   --text-md--line-height: 20px;   /* claim ID, long-text values, messages, phone row value */
+  --text-lg: 18px;   --text-lg--line-height: 24px;   /* serif field name and headlines; mono text values */
+  --text-xl: 22px;   --text-xl--line-height: 28px;   /* serif page messages; mono money/date/time/number/yes-no */
+
+  --tracking-tight: -0.01em;   /* serif */
+  --tracking-label: 0.08em;    /* AI draft tag */
+  --tracking-eyebrow: 0.12em;  /* mono uppercase section labels */
+
+  --radius-sm: 4px;  /* tags, kbd, active segment, skeleton bars */
+  --radius-md: 8px;  /* buttons, icon buttons, value box, input, rows, quote card, document paper, alerts */
+  --radius-lg: 12px; /* cards, frames */
+  --radius-full: 9999px; /* pills, chips, glyphs, progress, live dot */
+
+  --shadow-lift: 0 1px 3px rgb(15 29 58 / 0.08), 0 0 0 1px var(--color-line);     /* raised: paper, active segment, tooltip */
+  --shadow-selected: 0 1px 3px rgb(15 29 58 / 0.10), 0 0 0 1.5px var(--color-ink); /* selected row */
+
+  --animate-live: pulse 1.6s ease-in-out infinite;  /* live dot, skeleton */
+    --animate-arrive: fade-in 0.4s ease-out;          /* a new field row */
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@layer base {
+  body {
+    @apply bg-ground font-sans text-base text-ink tabular-nums;
+  }
+}

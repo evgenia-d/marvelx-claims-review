@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Review, laptop</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&amp;family=Source+Serif+4:opsz,wght@8..60,600&amp;display=swap" rel="stylesheet">
+<style>
+:root{
+--bg:#F4F6FA;--surface:#FFFFFF;--subtle:#E9EDF5;--line:#DFE4EE;--line-strong:#C3CBDA;
+--ink:#0F1D3A;--ink-2:#3E4A66;--ink-3:#5A6580;
+--focus:#0F1D3A;--primary:#2B5BDB;--primary-hover:#2149B8;--on-primary:#FFFFFF;
+--you:#2B5BDB;--you-hover:#2149B8;--on-you:#FFFFFF;--you-tint:#EAF0FD;--you-line:#BDD0F7;
+--attn:#A24B00;--attn-tint:#FCF0E2;--attn-line:#EEC89E;
+--cite:#F9E3A1;
+--r-sm:4px;--r-md:8px;--r-lg:12px;--r-full:999px;
+--lift:0 1px 3px rgba(15,29,58,.08),0 0 0 1px var(--line)}
+body{margin:0;background:var(--bg)}
+.app{font-family:Inter,system-ui,sans-serif;color:var(--ink);font-size:13px;line-height:18px;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+.mono{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-ligatures:none}
+.serif{font-family:"Source Serif 4",Georgia,serif;font-weight:600;letter-spacing:-.01em}
+.eyebrow{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:11px;line-height:14px;font-weight:500;letter-spacing:.12em;text-transform:uppercase}
+.t-xs{font-size:11px;line-height:14px}.t-sm{font-size:12px;line-height:16px}.t-base{font-size:13px;line-height:18px}.t-md{font-size:14px;line-height:20px}.t-lg{font-size:18px;line-height:24px}.t-xl{font-size:22px;line-height:28px}.t-2xl{font-size:28px;line-height:34px}
+.ink-2{color:var(--ink-2)}.ink-3{color:var(--ink-3)}
+button,summary,a{font-family:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.is-focus{outline:2px solid var(--focus);outline-offset:2px}
+.ib{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;flex:none;border-radius:var(--r-md);border:0;background:transparent;color:var(--ink-2);cursor:pointer;padding:0;text-decoration:none}
+.ib:hover{background:var(--subtle);color:var(--ink)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 12px;border-radius:var(--r-md);border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);font-size:13px;line-height:18px;font-weight:600;cursor:pointer;white-space:nowrap;box-sizing:border-box}
+.btn:hover{background:var(--bg);border-color:var(--ink-3)}
+.btn-primary{background:var(--primary);border-color:var(--primary);color:var(--on-primary)}
+.btn-primary:hover{background:var(--primary-hover);border-color:var(--primary-hover)}
+.btn[disabled]{background:var(--subtle);border-color:transparent;color:var(--ink-3);cursor:not-allowed}
+kbd{font:500 11px/14px "JetBrains Mono",monospace;min-width:16px;padding:0 3px;box-sizing:border-box;text-align:center;border-radius:var(--r-sm);background:var(--surface);border:1px solid var(--line);color:var(--ink-2)}
+.tag{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 6px;border-radius:var(--r-sm);font-family:"JetBrains Mono",monospace;font-size:11px;line-height:14px;font-weight:500;white-space:nowrap;box-sizing:border-box}
+.tag.attn{background:var(--attn-tint);color:var(--attn)}
+.tag.you{background:var(--you-tint);color:var(--you)}
+.tag.plain{background:var(--subtle);color:var(--ink-2)}
+.tag.draft{background:var(--subtle);color:var(--ink-2);letter-spacing:.08em;text-transform:uppercase}
+.chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:var(--r-full);font-size:12px;line-height:16px;font-weight:600;white-space:nowrap;background:var(--surface);border:1px solid var(--line);color:var(--ink)}
+.g{width:14px;height:14px;flex:none;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;border-radius:var(--r-full);position:relative}.g-done::after{content:"";width:3px;height:7px;margin-top:-2px;border:solid var(--on-you);border-width:0 2px 2px 0;transform:rotate(45deg)}.g-attn{background:var(--attn)}.g-attn::before{content:"";position:absolute;left:6px;top:3px;width:2px;height:5px;border-radius:1px;background:var(--surface)}.g-attn::after{content:"";position:absolute;left:6px;top:9px;width:2px;height:2px;border-radius:1px;background:var(--surface)}.g-sm{width:12px;height:12px}.g-sm.g-attn::before{left:5px;top:2.5px;height:4px}.g-sm.g-attn::after{left:5px;top:7.5px}
+.g-pend{border:1.5px solid var(--ink-3);border-radius:var(--r-full)}
+.g-done{background:var(--you);border-radius:var(--r-full)}
+
+.dot{width:6px;height:6px;border-radius:var(--r-full);background:currentColor;flex:none;animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.3}}
+@media (prefers-reduced-motion:reduce){.dot{animation:none}}
+.seg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px;padding:2px;background:var(--subtle);border-radius:var(--r-md)}
+.seg button{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:28px;border:0;border-radius:var(--r-sm);background:transparent;color:var(--ink-2);font-size:12px;line-height:16px;font-weight:500;cursor:pointer;white-space:nowrap}
+.seg button:hover{color:var(--ink)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);font-weight:600;box-shadow:var(--lift)}
+.seg .n{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--ink-3);font-weight:500}
+.sec{display:flex;align-items:center;gap:8px;width:100%;height:32px;margin-top:8px;padding:0 16px;border:0;background:transparent;color:var(--ink-2);font-family:"JetBrains Mono",monospace;font-size:11px;line-height:14px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;text-align:left;box-sizing:border-box}
+.sec:hover{color:var(--ink)}
+.sec .cnt{letter-spacing:0;color:var(--ink-3)}
+.sec svg{flex:none}
+.row{display:grid;grid-template-columns:14px minmax(0,1fr) auto;align-items:center;column-gap:10px;width:calc(100% - 16px);height:40px;margin:0 8px;padding:0 8px;border:0;border-radius:var(--r-md);background:transparent;text-align:left;cursor:pointer;box-sizing:border-box;color:var(--ink)}
+.row:hover,.row.is-hover{background:var(--subtle)}
+.row.is-sel{background:var(--surface);box-shadow:0 1px 3px rgba(15,29,58,.1),0 0 0 1.5px var(--ink)}
+.row .l{display:block;font-size:11px;line-height:14px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .v{display:block;font-family:"JetBrains Mono",monospace;font-size:12px;line-height:18px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row.mine .v{color:var(--you)}
+.row.empty .v{color:var(--ink-3);font-style:italic;font-weight:400}
+.more{display:block;width:calc(100% - 16px);height:28px;margin:0 8px;padding:0 8px 0 30px;border:0;border-radius:var(--r-md);background:transparent;color:var(--ink-3);font-size:12px;line-height:16px;text-align:left;cursor:pointer;box-sizing:border-box}
+.more:hover{background:var(--subtle);color:var(--ink)}
+details.dis{border-top:1px solid var(--line)}
+details.dis summary{list-style:none;display:flex;align-items:center;gap:8px;height:40px;padding:0 24px;font-size:13px;line-height:18px;font-weight:600;color:var(--ink-2);cursor:pointer}
+details.dis summary:hover{color:var(--ink);background:var(--bg)}
+summary::-webkit-details-marker{display:none}
+details .chev{transition:transform .15s}
+details[open] > summary .chev{transform:rotate(90deg)}
+.cite{display:flex;flex-direction:column;align-items:flex-start;gap:10px;width:100%;padding:12px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--bg);text-align:left;cursor:pointer;box-sizing:border-box;color:var(--ink)}
+.cite:hover{border-color:var(--line-strong)}
+.quote{font-family:"JetBrains Mono",monospace;font-size:12px;line-height:18px;color:var(--ink)}
+mark{background:var(--cite);color:var(--ink);border-radius:2px;padding:1px 0}
+.pane{min-height:0;overflow-y:auto}
+.pill{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:var(--r-full);font-size:12px;line-height:16px;font-weight:600;white-space:nowrap;box-sizing:border-box}
+.pill.open{border:1px solid transparent;background:var(--subtle);color:var(--ink-2)}
+.pill.yours{border:1px solid var(--you-line);background:var(--you-tint);color:var(--you)}
+.facts{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;font-size:12px;line-height:16px;color:var(--ink-2)}
+.facts .sep{color:var(--line-strong)}
+.field{display:flex;align-items:center;gap:12px;min-height:52px;padding:0 16px;border-radius:var(--r-md);box-sizing:border-box;min-width:0}
+.field .val{flex:1;min-width:0;font-family:"JetBrains Mono",monospace;font-size:22px;line-height:28px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.field .conf{flex:none;font-family:"JetBrains Mono",monospace;font-size:12px;line-height:16px;color:var(--ink-2)}
+.field.open{border:1.5px solid var(--line-strong);background:var(--surface)}
+.field.old{background:var(--bg);border-color:var(--line)}.field.old .val{color:var(--ink-3)}
+.v-text .val{font-size:18px;line-height:24px}
+.field.yours{border:1.5px solid var(--you-line);background:var(--you-tint)}
+.field.yours .val{color:var(--you)}
+.src{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;max-width:100%;height:26px;padding:0 10px;border:1px solid var(--line);border-radius:var(--r-full);background:var(--bg);color:var(--ink-2);font-family:"JetBrains Mono",monospace;font-size:11px;line-height:14px;font-weight:500;cursor:pointer;box-sizing:border-box;white-space:nowrap}
+.src:hover{border-color:var(--line-strong);color:var(--ink);background:var(--subtle)}
+</style>
+</helmet>
+<div class="app" style="width: 1280px; height: 800px; display: flex; flex-direction: column; background: var(--bg); overflow: hidden">
+
+<header style="flex: none; height: 56px; display: flex; align-items: center; gap: 12px; padding: 0 16px 0 12px; background: var(--surface); border-bottom: 1px solid var(--line); box-sizing: border-box">
+  <a href="#" class="ib" aria-label="Back to queue" title="Back to queue"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M10 3 5 8l5 5"></path></svg></a>
+  <h1 class="mono t-md" style="margin: 0; font-weight: 500">CLM-2026-004817</h1>
+  <span class="t-base ink-2">Sanne de Vries · Motor</span>
+  <span class="chip"><span class="dot"></span>Running</span>
+  <span class="t-sm ink-3">Look up policy</span>
+  <span style="flex: 1"></span>
+  <div style="display: flex; align-items: center; gap: 10px">
+    <div role="progressbar" aria-label="Fields decided" aria-valuemin="0" aria-valuemax="41" aria-valuenow="5" style="width: 96px; height: 4px; border-radius: var(--r-full); background: var(--subtle); overflow: hidden"><div style="width: 12%; height: 100%; background: var(--you)"></div></div>
+    <span class="t-sm ink-2"><strong class="mono" style="color: var(--you); font-weight: 600">5</strong> of 41 decided</span>
+  </div>
+  <button class="btn btn-primary" disabled="disabled" title="36 fields still need a decision" aria-describedby="why-blocked">Complete review</button>
+  <span id="why-blocked" hidden="hidden">36 fields still need a decision</span>
+</header>
+
+<details style="flex: none; background: var(--bg); border-bottom: 1px solid var(--line)">
+  <summary style="list-style: none; display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 16px 0 20px; cursor: pointer">
+    <span class="g g-attn" aria-hidden="true"></span>
+    <span class="t-sm" style="font-weight: 600; white-space: nowrap">Read claimant statement</span>
+    <span class="t-sm ink-2" style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Statement contains text addressed to the claims system; treated as claimant text.</span>
+    <span class="t-sm ink-3" style="white-space: nowrap">Agent steps 5 of 6</span>
+    <svg class="chev" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="var(--ink-3)" stroke-width="2" aria-hidden="true"><path d="m6 4 4 4-4 4"></path></svg>
+  </summary>
+</details>
+
+<div style="flex: 1; min-height: 0; display: grid; grid-template-columns: 320px minmax(0, 1fr) 400px">
+
+  <nav aria-label="Fields" style="min-height: 0; display: flex; flex-direction: column; background: var(--bg); border-right: 1px solid var(--line)">
+    <div style="flex: none; padding: 12px 16px 4px">
+      <div class="seg" role="group" aria-label="Show fields">
+        <button aria-pressed="false"><span class="g g-attn" aria-hidden="true"></span>Needs you <span class="n">7</span></button>
+        <button aria-pressed="false">To review <span class="n">36</span></button>
+        <button aria-pressed="true">All <span class="n">41</span></button>
+      </div>
+    </div>
+    <div class="pane" style="flex: 1; padding-bottom: 16px">
+    <sc-for list="{{sections}}" as="s" hint-placeholder-count="6">
+      <button class="sec" aria-expanded="{{s.exp}}">
+        <svg class="chev" width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true" style="{{s.rot}}"><path d="m6 4 4 4-4 4"></path></svg>
+        <span style="flex: 1">{{s.name}}</span>
+        <sc-if value="{{s.attn}}" hint-placeholder-val="{{ false }}"><span class="cnt" style="display: inline-flex; align-items: center; gap: 4px; color: var(--attn); letter-spacing: 0" aria-label="{{s.attnLabel}}"><span class="g g-attn g-sm" aria-hidden="true"></span>{{s.attn}}</span></sc-if>
+        <sc-if value="{{s.live}}" hint-placeholder-val="{{ false }}"><span class="cnt" style="display: inline-flex; align-items: center; gap: 6px; text-transform: none"><span class="dot"></span>Reading</span></sc-if>
+        <span class="cnt">{{s.cnt}}</span>
+      </button>
+      <sc-for list="{{s.rows}}" as="r" hint-placeholder-count="2">
+        <button class="row {{r.cls}}" aria-label="{{r.aria}}" aria-current="{{r.cur}}">
+          <span class="g {{r.g}}" aria-hidden="true"></span>
+          <span style="min-width: 0"><span class="l">{{r.n}}</span><span class="v">{{r.v}}</span></span>
+          <sc-if value="{{r.tag}}" hint-placeholder-val="{{ false }}"><span class="tag {{r.tagCls}}">{{r.tag}}</span></sc-if>
+        </button>
+      </sc-for>
+      <sc-if value="{{s.more}}" hint-placeholder-val="{{ false }}"><button class="more">{{s.more}}</button></sc-if>
+    </sc-for>
+    <button class="sec" style="margin-top: 16px"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m6 4 4 4-4 4"></path></svg><span style="flex: 1">Summary</span><span class="tag draft">AI draft · not verified</span></button>
+    </div>
+  </nav>
+
+  <main class="pane" aria-label="Total incl. VAT" style="background: var(--surface); display: flex; flex-direction: column">
+    <div style="flex: none; height: 48px; display: flex; align-items: center; gap: 4px; padding: 0 12px 0 24px; border-bottom: 1px solid var(--line)">
+      <span class="t-sm ink-3" style="flex: 1">Repair costs</span>
+      <button class="ib" aria-label="Previous field (K)" title="Previous field · K"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m4 10 4-4 4 4"></path></svg></button>
+      <button class="ib" aria-label="Next field (J)" title="Next field · J"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m4 6 4 4 4-4"></path></svg></button>
+    </div>
+
+    <div style="padding: 24px; display: flex; flex-direction: column; gap: 12px">
+      <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap">
+        <h2 class="serif t-lg" style="margin: 0 4px 0 0">Total incl. VAT</h2>
+        <span class="tag attn">Changed after you</span>
+        <span class="tag attn">Blocks sign-off</span>
+      </div>
+      <div style="display: grid; grid-template-columns: minmax(0, 1fr) 16px minmax(0, 1fr); gap: 8px; align-items: start">
+        <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0"><div class="field yours"><span class="val">€ 3,605.80</span></div><span class="pill yours" style="align-self: flex-start"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="m3 8.5 3 3 7-7"></path></svg>You · accepted 10:06</span></div>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--ink-3)" stroke-width="1.6" role="img" aria-label="changed to" style="align-self: start; margin-top: 18px"><path d="M3 8h10M9 4l4 4-4 4"></path></svg>
+        <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0"><div class="field open"><span class="val">€ 4,415.30</span></div><div class="facts"><span class="pill open">Not decided</span><span>Agent · changed 10:07 · High 95%</span></div></div>
+      </div>
+      <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 4px">
+        <button class="btn btn-primary is-focus" title="Use the new value · A"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m3 8.5 3 3 7-7"></path></svg>Use new</button>
+        <button class="btn"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 1.8 13 3.8v4c0 3-2.2 5-5 6.2-2.8-1.2-5-3.2-5-6.2v-4z"></path></svg>Keep mine</button>
+        <button class="btn" title="Correct · C"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M11 2.5 13.5 5 6 12.5H3.5V10z"></path></svg>Correct</button>
+        <button class="btn" title="Reject and enter your own value · R"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"></path></svg>Reject</button>
+        <span style="flex: 1"></span>
+        <button class="ib" aria-label="Skip for now (S)" title="Skip for now · S" style="width: 36px; height: 36px"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m4 4 4 4-4 4M9 4l4 4-4 4"></path></svg></button>
+      </div>
+    </div>
+
+    <div style="flex: none">
+      <details class="dis" open="open">
+        <summary><svg class="chev" width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m6 4 4 4-4 4"></path></svg>Why it changed</summary>
+        <p class="t-base ink-2" style="margin: 0; padding: 0 24px 16px 42px">Page 2 adds supplements of € 669.01 excl. VAT; the page 1 figure was an estimate.</p>
+      </details>
+      <details class="dis" style="border-bottom: 1px solid var(--line)">
+        <summary><svg class="chev" width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m6 4 4 4-4 4"></path></svg>History<span class="t-sm ink-3" style="font-weight: 500">2 versions</span></summary>
+      </details>
+    </div>
+
+    <div style="flex: 1"></div>
+    <div class="t-xs ink-3" style="flex: none; display: flex; gap: 16px; padding: 12px 24px; border-top: 1px solid var(--line)">
+      <span><kbd>J</kbd> <kbd>K</kbd> move</span><span><kbd>A</kbd> <kbd>C</kbd> <kbd>R</kbd> decide</span><span><kbd>S</kbd> skip</span><span><kbd>U</kbd> undo</span>
+    </div>
+  </main>
+
+  <aside aria-label="Source document" style="min-height: 0; background: var(--bg); border-left: 1px solid var(--line); display: flex; flex-direction: column">
+    <div style="flex: none; height: 48px; display: flex; align-items: center; gap: 8px; padding: 0 12px 0 16px; background: var(--bg); border-bottom: 1px solid var(--line)">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--ink-3)" stroke-width="1.5" aria-hidden="true" style="flex: none"><path d="M4 1.5h5.5L12.5 4.5v10h-8.5z"></path><path d="M9.5 1.5v3h3"></path></svg>
+      <span class="t-base" style="flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Repair invoice, Autoherstel Oost</span>
+      <span class="t-sm ink-3">Page 2 of 2</span>
+      
+    </div>
+    <div class="pane" style="flex: 1; padding: 16px">
+      <div class="mono t-sm" style="padding: 24px 20px; background: var(--surface); border-radius: var(--r-md); box-shadow: var(--lift); color: var(--ink-2); white-space: pre-line; overflow-wrap: anywhere">AUTOHERSTEL OOST B.V.        Invoice AHO-26-1182 (continued)
+
+Description                              Qty       Unit price     Amount
+Parking sensor recalibration, rear       1         € 185.00       € 185.00
+Paint blending, adjacent panels          1         € 362.51       € 362.51
+Disposal and environmental fee           1         € 24.50        € 24.50
+Courtesy car                             4 days    € 24.25        € 97.00
+
+Page 2 subtotal (excl. VAT): € 669.01
+
+Subtotal excl. VAT: € 3,649.01
+VAT 21%: € 766.29
+<mark>Total incl. VAT: € 4,415.30</mark>
+
+Payment within 30 days. Direct settlement with the insurer accepted.
+Page 2 of 2</div>
+    </div>
+  </aside>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var MEANING = { "g-done": "decided by you", "g-pend": "to check", "g-attn": "needs you" };
+    function r(n, v, g, tag, tagCls, cls) { return { n: n, v: v, g: g, tag: tag || "", tagCls: tagCls || "attn", cls: cls || "", cur: (cls || "").indexOf("is-sel") > -1 ? "true" : "false", aria: n + ": " + v + ", " + MEANING[g] + (tag ? ", " + tag : "") }; }
+    function s(name, cnt, attn, exp, rows, more, live) { return { name: name, cnt: cnt, attn: attn || "", attnLabel: (attn || "0") + " need you", exp: exp ? "true" : "false", rot: exp ? "transform: rotate(90deg)" : "", rows: rows, more: more || "", live: !!live }; }
+    return {
+      sections: [
+        s("Incident", "4/10", "", false, []),
+        s("Parties", "1/9", "4", true, [
+          r("Policyholder name", "Sanne de Vries", "g-pend"),
+          r("Claimant phone", "+31 6 4821 7730", "g-pend"),
+          r("Claimant email", "sanne.devries@example.com", "g-pend"),
+          r("Third-party driver", "Unknown", "g-done", "Replaced", "you", "mine"),
+          r("Third-party registration", "GH-219-B", "g-attn", "Low 38%"),
+          r("Third-party insurer", "Noordzee Verzekeringen", "g-attn", "Low 33%"),
+          r("Third-party policy number", "Not found", "g-attn", "Empty", "attn", "empty"),
+          r("Witness name", "R. Bakker", "g-pend", "", "", "is-hover"),
+          r("Witness phone", "Not found", "g-attn", "Empty", "attn", "empty")
+        ]),
+        s("Vehicle and damage", "0/5", "", false, []),
+        s("Repair costs", "0/14", "2", false, [
+          r("Parts total (excl. VAT)", "€ 1,252.00", "g-attn", "Not in source"),
+          r("Total incl. VAT", "€ 4,415.30", "g-attn", "Changed after you", "attn", "is-sel")
+        ], "+ 12 more to check"),
+        s("Policy and cover", "0/2", "", false, [], "", true),
+        s("Assessment", "0/1", "1", false, [
+          r("Liability", "Shared (disputed)", "g-attn", "Changed after you")
+        ])
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
