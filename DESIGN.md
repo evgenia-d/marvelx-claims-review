@@ -14,7 +14,7 @@ Chosen in round 1 over six others (A ledger table, B triage cards, C source-led,
 
 - **Review, laptop (1280 × 800):** three panes that scroll on their own: field list `320px`, open field (fluid), source document `400px`. One-line claim header, one-line agent step line under it.
 - **Review, phone (375):** the list is the main screen. A row opens the field full screen with back, previous / next and a sticky bottom action bar. The cited text shows inline under the value; the whole document is laptop only.
-- **Queue (round 4, option A "work list"):** a table on laptop, one card per claim on phone (one component, two layouts), status and priority filters in the URL. Fixed sort: priority, then oldest received.
+- **Queue (round 4, option A "work list"):** a table on laptop, one card per claim on phone (one component, two layouts), a status filter in the URL (priority filter cut 19 Nov; priority still shows in each row). Fixed sort: priority, then oldest received.
 - **Breakpoint:** phone layout below `lg` (1024 px), laptop layout from `lg`.
 
 **Cut for time (2026-11-19, owner):** keyboard shortcuts and their hints (J/K/A/C/R/S/U); the phone document bottom sheet (spec T6 on phone, say so in the README); the phone filter menu (native `<select>` instead); queue column sorting; the Skip button; the History disclosure. Canvas frames still draw these; this list wins. Everything stays reachable with Tab and Enter and shows the focus ring.
@@ -149,7 +149,6 @@ No claim, field, decision or run concepts. Props in, markup out. Names describe 
 | `Select` | native `<select>` | phone filter: half width, 44 high, styled box and chevron | visible label |
 | `ProgressBar` | determinate progress | 4px track `subtle`, fill `you`, count beside it in mono | `role="progressbar"` with min, max, now |
 | `ListRow` | selectable row | glyph · label over value · trailing slot. Rest · hover · selected (`shadow-selected`) · focus · `tone="you"` value · `empty` (italic grey) · arrives (fade-in). 40 / 52 | a button; `aria-current` when open |
-| `CollapsibleHeader` | accordion header | chevron, mono uppercase name, trailing counts slot; open / closed | button with `aria-expanded` |
 | `Disclosure` | details / summary | closed by default; 40 / 48 summary, chevron turns | native `details` |
 | `ValueBox` | read-only value | tone `default` (white, strong edge) · `tint` (blue tint, you-line edge, blue text) · `muted` (ground, grey text). Size `num` (mono xl, 1 line) · `text` (mono lg, 2 lines) · `long` (Inter md, 4 lines + "Show all" / "Show less"). 52 min height; the input uses the same box and size | value is text, never a link |
 | `TextInput` | input (+ reason line) | same box and size as `ValueBox`; focus ring | visible label; Save / Cancel buttons (Enter submits the form) |
@@ -173,10 +172,10 @@ No claim, field, decision or run concepts. Props in, markup out. Names describe 
 | `CompleteReview` | Button | blocked: "Complete review · 36 left", "· agent working", "· not started"; tooltip "36 fields still need a decision". Ready: primary "Complete review" |
 | `AgentStepLine` | Disclosure, StatusGlyph | collapsed: latest note in one line ("Read claimant statement · Statement contains text…", "No notes"), "Agent steps 5 of 6"; open: `AgentSteps` |
 | `AgentSteps` | ordered list | done (grey check) · note (orange !) · running (live dot) · failed (triangle) |
-| `RunFailedLine` | Alert band | "Look up policy failed · The policy service did not respond within 10 seconds. Not checked: policy cover and excess." + "Retry run" (only if retryable) |
+| `RunFailedLine` | Alert band | "Look up policy failed · The policy service did not respond within 10 seconds. Not checked: policy cover and excess." (no "Retry run": T8 cut 19 Nov) |
 | `Reconnecting` | Busy | "Reconnecting…" beside the run chip; polite live region; last state stays |
 | `FieldFilter` | SegmentedControl | "Needs you 7" · "To review 36" · "All 41"; filters, never re-sorts |
-| `FieldSection` | CollapsibleHeader, FieldRow | collapsed keeps problem rows and the open row visible; counts "4/10", orange "! 4" for needs you, "Reading" dot while live. No "+ N more" line (older frames still draw it) |
+| `FieldSection` | FieldRow | plain heading (mono uppercase group name) with its rows; "Reading" dot while live. Collapsing and per-group counts cut 19 Nov (frames still draw them) |
 | `FieldRow` | ListRow, StatusGlyph, Badge | glyph by status; tags "Low 38%", "Empty", "Not in source", "No source", "Changed after you", "Replaced"; empty value "Not found". aria-label: name, value, state, tag |
 | `FieldCard` | ValueBox, DecisionPill, AgentLine, DecisionButtons, FieldDetails | name (serif h2) + tags → value → pill and agent line → actions → details. Same layout in every state; "Blocks sign-off" tag when revised after a decision. Before → after is two `ValueBox`es: side by side with → for money, dates, times, numbers, yes/no; stacked with ↓ for text. Phone: cited text inline under the value (`CitedText`) |
 | `DecisionPill` | Badge (pill) | "Not decided" · "You · accepted 10:06" ✓ · "You · corrected 10:06" ✎ · "You · replaced 10:07" ⇄ |
@@ -198,7 +197,7 @@ No claim, field, decision or run concepts. Props in, markup out. Names describe 
 | Component | Built from | States and wording |
 |---|---|---|
 | `QueueHeader` | text, Busy | "Claims queue" (h1) · "Live" · "4 claims" |
-| `QueueFilters` | SegmentedControl (laptop), native Select (phone) | Status: All · Queued · Running · Needs review · Failed · Reviewed; Priority: All · High · Normal · Low. Counts within the other filter; state in `?status=&priority=` |
+| `QueueFilters` | SegmentedControl (laptop), native Select (phone) | Status: All · Queued · Running · Needs review · Failed · Reviewed, with counts; state in `?status=`. Priority filter cut 19 Nov |
 | `PriorityMark` | three bars + word | High (bold ink) · Normal · Low. Never orange |
 | `NeedsYouCount` | StatusGlyph | orange ! + count; 0 is grey; reads "7 need you" |
 | `QueueTable` + `QueueRow` | Table | Priority · Reference · Claimant · Product · Status · Needs you · Confidence ("—", "— run failed", "High 95%") · Received · Updated. Fixed sort, "Sorted by priority, then oldest received." Below `lg` the same row is a card: reference + status, claimant · product + priority, needs you + confidence, received · updated. The reference is the one link; its label reads the row |

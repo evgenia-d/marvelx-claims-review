@@ -6,13 +6,13 @@
 
 **Goal:** A reviewer watches the fixture agent runs live, decides each extracted field (accept, correct, override, undo) through a small backend, and signs claims off, on laptop and phone.
 
-**Architecture:** One Node process (Hono) owns the replay clock, the in-memory decisions and the queue. It streams run events per claim, plus a small queue-change signal, over SSE, and serves the queue, claim detail and decisions over REST. Browser and server share one Zod contract (`shared/contract/`) and one pure domain layer (`shared/domain/`: reducer, `fieldView`, status), so the merge rule "a human decision is never overwritten" exists once. In the browser, TanStack Query owns server data, a Zustand store owns run state built by the shared reducer, and the URL owns filters and the open field.
+**Architecture:** One Node process (Hono) owns the replay clock, the in-memory decisions and the queue. It streams run events per claim over SSE, and serves the queue, claim detail and decisions over REST. Browser and server share one Zod contract (`shared/contract/`) and one pure domain layer (`shared/domain/`: reducer, `fieldView`, status), so the merge rule "a human decision is never overwritten" exists once. In the browser, TanStack Query owns server data, a Zustand store owns run state built by the shared reducer, and the URL owns filters and the open field.
 
 **Tech Stack:** Node 22+, TypeScript strict, Vite, React 19 + React Compiler, React Router, TanStack Query v5, Zustand, Tailwind v4, Zod 4, Hono + `@hono/node-server` + `@hono/zod-validator`, react-markdown, Vitest, Playwright (smoke tests and screenshots), tsx, ESLint. No headless UI library.
 
 **Execution:** subagent-driven for every slice (superpowers:subagent-driven-development), Slice C included; C runs in its own worktree in parallel with B and A. Implementer model: Opus for B, A, D1, D2 (reducer, merge rule, API: costly if wrong); Sonnet for 0, C, E, F, G (well specified). Reviewers on Opus.
 
-**Spec:** `plans/SPEC.md` (product rules and acceptance rows A1–A8, T1–T8, P1). Look and building blocks: `DESIGN.md`. Fixture format: `fixtures/README.md`.
+**Spec:** `plans/SPEC.md` (product rules and acceptance rows A1–A8, T1–T7; T8 retry and P1 priority filter cut by the owner on 19 Nov). Look and building blocks: `DESIGN.md`. Fixture format: `fixtures/README.md`.
 
 ## Global Constraints
 
@@ -83,12 +83,11 @@ export const QueueItem = z.object({
 });
 
 // strictObject: an unknown param is a 400, not silently ignored.
-export const QueueQuery = z.strictObject({ status: ClaimStatus.optional(), priority: Priority.optional() });
+export const QueueQuery = z.strictObject({ status: ClaimStatus.optional() });
 export const QueueResponse = z.object({
   claims: z.array(QueueItem),              // sorted: priority high → low, then oldest received_at
-  counts: z.object({                       // status counts within the priority filter and vice versa
+  counts: z.object({                       // claims per status, over the whole queue, zeros included
     status: z.record(ClaimStatus, z.number().int()),
-    priority: z.record(Priority, z.number().int()),
   }),
 });
 
@@ -98,7 +97,6 @@ export const ClaimDetail = z.object({
   documents: z.array(DocumentMeta.extend({ text: z.string() })),   // small; one request, slice in the browser
   field_groups: z.array(z.object({ name: z.string(), field_ids: z.array(z.string()) })),
   not_checked: z.record(z.string(), z.string()),                    // step_id → "policy cover and excess"
-  retry_available: z.boolean(),                                     // an extra run exists for this claim (T8)
 });
 ```
 
@@ -143,15 +141,15 @@ Path params `ClaimParams = { claimId: z.string().regex(/^CLM-\d{4}-\d{6}$/) }`, 
 
 | Owner | Holds | Where |
 |---|---|---|
-| Server replay | per-claim timeline (base run, plus a retry segment after T8), clock, `epoch` (bumped on restart) | `server/src/replay.ts` |
-| Server store | current decision per field, past decisions, `completed_at` per claim | `server/src/decisions.ts` |
+| Server replay | per-claim timeline, clock, `epoch` (bumped on restart) | `server/src/replay.ts` |
+| Server store | current decision per field, `completed_at` per claim | `server/src/decisions.ts` |
 | Run state (browser) | `RunState` per claim, from `applyEvent`; never edited by the UI | Zustand, `web/src/api/runStore.ts` |
-| Server data (browser) | queue (refetched on each `queue_changed` signal), claim detail, decisions (optimistic) | TanStack Query, `web/src/api/queries.ts` |
-| URL | `/?status=&priority=`, `/claims/:claimId?field=<field_id>` | React Router + Zod |
+| Server data (browser) | queue (polled every 2 s while the queue page is open), claim detail, decisions (optimistic) | TanStack Query, `web/src/api/queries.ts` |
+| URL | `/?status=`, `/claims/:claimId?field=<field_id>` | React Router + Zod |
 | Local | the open decision form's draft, open sections, field filter (Needs you / To review / All) | `useState` |
 | Derived | field status, shown value, attention, counts, claim status, can-complete | `shared/domain/`, at render time |
 
-**Why the queue stream is a signal, not the data:** the queue stream (`GET /api/queue/events`) carries no queue data, only `queue_changed`. The browser then refetches `GET /api/queue` with its own filters, so filtering, validation and the 400 live in one REST endpoint and the stream needs no per-client filter. SSE over WebSocket: data flows one way, and `EventSource` reconnects on its own. Over polling: changes arrive when they happen, and it reuses Slice A's SSE code. The queue item is computed by the server with the same domain functions as the review screen, so the two can't disagree.
+**Why the queue polls and the run streams (owner, 19 Nov):** a queue row's `updated_at` and `needs_you` change with almost every agent event (4817: 111 events in 103 s), so a push signal would fire about once a second while runs are live: more requests than a 2 s poll, for a summary page where 2 s is fresh enough. Polling needs no server loop, no change detection and no timing tests, and keeps one long-lived connection per tab (HTTP/1.1 allows 6 per origin across tabs). The run stream stays SSE: there fields must appear the moment the agent emits them, data flows one way, and `EventSource` reconnects on its own. TanStack Query pauses the poll in a hidden tab, and the reviewer's own decisions refetch the queue at once. The queue item is computed by the server with the same domain functions as the review screen, so the two can't disagree.
 
 ### `shared/domain/` signatures (Slice B owns them)
 
@@ -213,11 +211,11 @@ function formatInstant(iso: string): string;                           // "10:06
 
 **Attention.** Reasons are always computed (they drive tags): `low_confidence` (Low), `revised_after_decision`, `no_source` (source null), `not_in_citation`, `step_warning` (the field's extracting step finished with `warning`), `empty_value` (null). `needsYou = attention.length > 0 && status ∈ {pending, revised_after_decision}`: a current decision answers the field.
 
-**T2 matching (`citationCheck`).** Only `time`, `date`, `money`, `number`; others `not_checked`; null value or null cited → `not_checked`. Every candidate must stand alone: not preceded by a digit or `[.,]`-digit, not followed by a digit or `[.,]`-digit.
-- time `"22:40"`: the string itself.
-- date `"2026-09-13"`: `2026-09-13`, `13 September 2026`, `13-09-2026`, `13/09/2026` (day without leading zero also). A date cited without its year (4822 `discovered_at`, "Sunday 20 September") is `not_found`: the year is unverified. Check this call.
-- money `"1189.00"`: `1189.00`, `1,189.00`, `1.189,00`, `1189,00`.
-- number `48213`: `String(n)` and its en-grouped form `48,213`.
+**T2 matching (`citationCheck`).** Only `time`, `date`, `money`, `number`; others `not_checked`; null value, null cited, or a value of the wrong shape for its type → `not_checked`. The check reads numbers and dates out of the cited text and compares them to the value as written; it never formats the value or builds a regex from agent text.
+- money `"1189.00"` and number `48213`: the numbers in the cited text, each read whole with thousands commas removed (`€ 1,189.00` → `1189.00`), must include the amount string or `String(n)`. So `4` is not found in `14.5 h`, and `1252.00` is not found in lines that only add up to it.
+- time `"22:40"`: the cited text contains the string as is.
+- date `"2026-09-13"`: the cited text contains `2026-09-13`, or a `D Month YYYY` date (`13 September 2026`, leading zero ignored). A date cited without its year (4822 `discovered_at`, "Sunday 20 September") is `not_found`: the year is unverified. Check this call.
+- Only the English forms the fixture documents use (owner, 19 Nov). A value written another way shows as not found next to its cited text, which the reviewer can judge.
 
 ### Endpoints (`server/src/routes/`)
 
@@ -230,8 +228,6 @@ function formatInstant(iso: string): string;                           // "10:06
 | `PUT /api/claims/:claimId/fields/:fieldId/decision` | `DecisionInput` | 200 `Decision` | 400 `invalid_body` / `invalid_value`, 404 `claim_not_found` / `field_not_found`, 409 `agent_revised` / `claim_completed` |
 | `DELETE /api/claims/:claimId/fields/:fieldId/decision` | | 204 (also when there was none) | 404, 409 `claim_completed` |
 | `POST /api/claims/:claimId/complete` | | 200 `QueueItem` | 404, 409 `not_ready` (message from `canComplete`) |
-| `POST /api/claims/:claimId/retry` | | 202 | 404, 409 `not_retryable` |
-| `GET /api/queue/events` | | SSE: `event: queue_changed`, `id: <n>`, no data; sent when any claim's unfiltered `QueueItem` changes (checked every 200 ms), and once on connect; `: hb` every 15 s | |
 | `POST /api/replay/restart` | | 204 | |
 
 **SSE delivery.** On connect: every due event in delivery order with `seq > Last-Event-ID` (all of them without the header), then every 200 ms the newly due ones. The fixture's duplicate (seq 42 again at 56.7 s) is sent as the file has it; the reducer drops it. Resuming by `seq >` can skip a late duplicate, which is harmless. Stops writing on `stream.onAbort`.
@@ -248,12 +244,12 @@ Order of work: **0 → B → A → C → D1 → D2 → E → F → G**, then Fin
 |---|---|---|---|
 | 0 Scaffold + contract | – | – | `npm run dev` serves a blank page with tokens and a `/api/health`; every fixture file parses with the contract |
 | B Domain | 0 | merge rule, A1/A2 logic, T2–T5 logic, A6 logic | every test below green; no React or I/O import in `shared/` |
-| A Backend | 0, B | A4/A5/A6/A8 backend, T8 backend | `npm run replay` restarts; 400/404/409 tested; SSE catch-up + resume tested with a fake clock |
-| C UI primitives | 0 | look of A7 | the DESIGN.md primitives on `/dev/ui`, each state visible; token check passes |
+| A Backend | 0, B | A4/A5/A6/A8 backend | `npm run replay` restarts; 400/404/409 tested; SSE catch-up + resume tested with a fake clock |
+| C UI primitives | 0 | look of A7 | the DESIGN.md primitives, checked where D1–G use them; token check passes |
 | D1 Review, live read | B, A, C | A1, T1, T2, T4, T5, T6 (laptop), T7 | 4817 plays live at 1280 px, reload mid-run resumes, no row moves |
 | D2 Review, decisions | D1 | A2, A6, A8, T3 | the BRIEFING checklist items on decisions pass by hand |
-| E Queue | A, C, D2 | A4, A5 (control), P1 | live rows, filters in the URL, invalid filter message; Playwright smoke tests pass |
-| F States + retry | D2, E | A3, T8 | every state in DESIGN `ReviewStates` / `QueueStates` reachable; 4822 failure and retry |
+| E Queue | A, C, D2 | A4, A5 (control) | live rows, status filter in the URL, invalid filter message; Playwright smoke tests pass |
+| F States | D2, E | A3 | every state in DESIGN `ReviewStates` / `QueueStates` reachable; 4822 failure |
 | G Phone + access | F | A7 | 375 and 1280 px pass the A7 criteria; keyboard-only review of one claim |
 
 ---
@@ -326,7 +322,7 @@ Test helpers in `shared/domain/test-events.ts`: `extracted(seq, field_id, value,
   - confidenceLevel: 0.59 → low, 0.60 → medium, 0.849 → medium, 0.85 → high.
   - claimStatus: not_started → queued, running → running, finished → needs_review, failed → failed, any + completedAt → reviewed.
   - canComplete: running → `agent_working`; finished with 2 pending → `fields_left, left: 2`; one `revised_after_decision` counts as left; failed with all decided → ok; completed → not ok.
-  - queueCounts: status counts honour the priority filter and ignore the status filter.
+  - queueCounts: counts every status over the whole queue, zeros included (P1 cut, 19 Nov).
   - formatMoney `{"4415.30","EUR"}` → "€4,415.30"; `{"-12.50","EUR"}` → "-€12.50"; `{"1000000.00","GBP"}` → "£1,000,000.00"; formatDate "2026-09-13" → "13 Sep 2026" in any `TZ`; formatValue boolean true → "Yes"; null → null.
 - [ ] **Step 5:** run FAIL → implement → `npm test -- shared/domain` PASS, typecheck, lint.
 - [ ] **Step 6:** slice-reviewer, owner review, commit when told: `feat(domain): run reducer, fieldView and status`.
@@ -335,32 +331,31 @@ Test helpers in `shared/domain/test-events.ts`: `extracted(seq, field_id, value,
 
 **Files:**
 - Create: `server/src/catalog.ts` (`loadCatalog(root: string): Catalog`: claims, documents with text, runs parsed with `RunEvent`, extra runs; throws on a bad fixture line with file and line number)
-- Create: `server/src/claimConfig.ts` (field groups, `not_checked: { "CLM-2026-004822": { lookup_policy: "policy cover and excess" } }`, `retryRuns: { "CLM-2026-004822": "extra/CLM-2026-004822-retry.jsonl" }`)
-- Create: `fixtures/extra/CLM-2026-004822-retry.jsonl` (seq from 101; `run_started`, `step_started lookup_policy`, the policy fields, `step_finished ok`, a summary paragraph, `run_finished`; about 8 s)
+- Create: `server/src/claimConfig.ts` (field groups, `not_checked: { "CLM-2026-004822": { lookup_policy: "policy cover and excess" } }`)
 - Create: `server/src/replay.ts`, `server/src/decisions.ts`, `server/src/claims.ts` (service), `server/src/app.ts`, `server/src/routes/{queue,claims,events,decisions,replay}.ts`, `server/src/errors.ts`
 - Modify: `server/src/index.ts` (real clock, `createApp`)
 - Test: `server/test/{queue,claims,events,decisions,replay}.test.ts`
 
 **Interfaces:**
-- `createReplay(catalog, now: () => number): Replay` with `due(claimId): RunEvent[]`, `run(claimId): RunState` (folded with `applyEvents`), `lastDeliveredAt(claimId): number | null`, `epoch(): number`, `restart(): void`, `retry(claimId): boolean`.
-- `interface DecisionStore { list(claimId); get(claimId, fieldId); save(d: Decision); remove(claimId, fieldId); complete(claimId, at); completedAt(claimId); clear() }` + `createMemoryDecisionStore()`. `save` keeps the replaced decision in a past list (SPEC: kept, not shown).
+- `createReplay(catalog, now: () => number): Replay` with `due(claimId): RunEvent[]`, `run(claimId): RunState` (folded with `applyEvents`), `lastDeliveredAt(claimId): number | null`, `epoch(): number`, `restart(): void`.
+- `interface DecisionStore { list(claimId); get(claimId, fieldId); save(d: Decision); remove(claimId, fieldId); complete(claimId, at); completedAt(claimId); clear() }` + `createMemoryDecisionStore()`. `save` replaces the field's decision; old decisions are not kept.
 - `createApp({ catalog, replay, store, now }): Hono`. Test helper `makeApp(t0 = 0)` returns `{ app, tick(ms) }` with a fake clock.
 - Service returns `Result<T> = { ok: true; value: T } | { ok: false; status: 400 | 404 | 409; code: string; message: string }`; routes only translate it.
 
 - [ ] **Step 1: Write the failing tests:**
-  - queue: "returns all four claims sorted by priority then received"; "filters by status"; "400 with a readable message for status=done"; "400 for an unknown param"; "4817 is queued at 0 ms before its first event and running after tick(100)"; "4809 is needs_review with confidence 0.95 at once"; "4822 is failed with run_failed and confidence null after tick(4000 + 31750)"; "counts status within the priority filter".
+  - queue: "returns all four claims sorted by priority then received"; "filters by status"; "400 with a readable message for status=done"; "400 for an unknown param"; "4817 is queued at 0 ms before its first event and running after tick(100)"; "4809 is needs_review with confidence 0.95 at once"; "4822 is failed with run_failed and confidence null after tick(4000 + 31750)"; "counts every status, zeros included".
   - claims: "404 claim_not_found for CLM-2026-999999"; "400 for a malformed id"; "detail includes documents with text, groups and not_checked".
   - decisions: "saves an accept against the current version"; "409 agent_revised when based_on is outdated" (accept total_incl_vat `based_on: 1` after tick past 53.8 s); "404 field_not_found for a field not yet emitted"; "400 when an override has no reason"; "400 invalid_value for a string on a money field"; "undo returns 204 and the field has no decision"; "409 claim_completed after completion, for save and undo"; "complete is 409 not_ready while running and with pending fields"; "complete moves the queue item to reviewed and keeps run_failed".
-  - events: "sends every due event with its seq as id"; "resumes after Last-Event-ID"; "sends the duplicate seq 42 as the fixture has it"; "returns 404 JSON for an unknown claim"; "sends a reset event and closes the stream when the replay restarts"; queue stream: "sends queue_changed once on connect", "sends queue_changed when 4817 starts running", "sends nothing while no queue item changes". Read the SSE body with a reader until the expected count, then `cancel()`; use `vi.useFakeTimers()` for the 200 ms loop.
-  - replay: "restart clears decisions and completion and starts runs at 0, 4 and 20 s"; "retry is 409 not_retryable for a running claim"; "retry appends the extra run after the failure and the claim becomes running".
+  - events: "sends every due event with its seq as id"; "resumes after Last-Event-ID"; "sends the duplicate seq 42 as the fixture has it"; "returns 404 JSON for an unknown claim"; "sends a reset event and closes the stream when the replay restarts". Read the SSE body with a reader until the expected count, then `cancel()`; use `vi.useFakeTimers()` for the 200 ms loop.
+  - replay: "restart clears decisions and completion and starts runs at 0, 4 and 20 s".
 - [ ] **Step 2:** run, expect FAIL. **Step 3:** implement catalog → replay → store → service → routes. **Step 4:** `npm test -- server` PASS; `npm run dev:server`, then `curl -i 'localhost:8787/api/queue?status=done'` → 400 with the message; `curl -N localhost:8787/api/claims/CLM-2026-004817/events` streams; `npm run replay` prints "Replay restarted".
 - [ ] **Step 5:** slice-reviewer, owner review, commit when told: `feat(server): replay, queue, events and decisions API`.
 
 ### Slice C: UI primitives
 
-**Files:** Create `web/src/ui/{Button,IconButton,Badge,StatusGlyph,SegmentedControl,Select,ProgressBar,ListRow,CollapsibleHeader,Disclosure,ValueBox,TextInput,Alert,Message,Skeleton,Tooltip,Highlight,Busy,Table}.tsx`, `web/src/ui/icons.tsx` (inline SVG: check, bang, triangle, chevron, pencil, swap, undo, back, arrow), `web/src/ui/index.ts`, `web/src/features/dev/UiPage.tsx` (route `/dev/ui`, only when `import.meta.env.DEV`).
+**Files:** Create `web/src/ui/{Button,IconButton,Badge,StatusGlyph,SegmentedControl,Select,ProgressBar,ListRow,Disclosure,ValueBox,TextInput,Alert,Message,Skeleton,Tooltip,Highlight,Busy,Table}.tsx`, `web/src/ui/icons.tsx` (inline SVG: check, bang, triangle, chevron, pencil, swap, undo, back, arrow), `web/src/ui/index.ts`. No `/dev/ui` showcase page (cut 19 Nov): primitives are checked on the screens that use them.
 
-**Interfaces:** Exactly the 19 primitives, variants and access rules in DESIGN.md "`web/src/ui/`: primitives". Variant props are string unions named for looks (`tone`, `variant`, `size`, `layout`). Key signatures later slices rely on:
+**Interfaces:** Exactly the 18 primitives (19 minus `CollapsibleHeader`, cut 19 Nov), variants and access rules in DESIGN.md "`web/src/ui/`: primitives". Variant props are string unions named for looks (`tone`, `variant`, `size`, `layout`). Key signatures later slices rely on:
 - `Button({ variant: "primary" | "secondary", disabledReason?: string, icon?, children, ...button })`: with `disabledReason` it renders `aria-disabled="true"`, ignores clicks, and links the reason via `aria-describedby` to a `Tooltip`.
 - `Badge({ shape: "tag" | "pill", tone: "attn" | "you" | "plain" | "outline" | "label", icon?, children })`
 - `StatusGlyph({ kind: "ring" | "done" | "attn" | "error", size?: 12 | 14 })`
@@ -370,12 +365,12 @@ Test helpers in `shared/domain/test-events.ts`: `extracted(seq, field_id, value,
 - `Tooltip({ content, align?: "start" | "end", children })`: `role="tooltip"` linked with `aria-describedby`; shows on hover and focus, hides on Escape and blur; placed under the trigger with no gap (so the pointer can move onto it); `align` set by the caller ("end" for header buttons on the right). No collision logic. If it gets fiddly, stop and ask before adding a library.
 - `Alert({ layout: "box" | "band", action?: { label, onClick }, children })`; `Message({ headline, body, action?, error?: boolean })`.
 
-Everything is native, no headless library: `Select` is `<select>` (the phone's own picker), `Disclosure` is `<details>`, `CollapsibleHeader` is a `button` with `aria-expanded` (a collapsed section keeps its problem rows visible, so it never hides all its content), `ProgressBar` is a `div` with `role="progressbar"`, `Table` is `table`, and the hidden "Loading…" text uses `sr-only`.
+Everything is native, no headless library: `Select` is `<select>` (the phone's own picker), `Disclosure` is `<details>`, `ProgressBar` is a `div` with `role="progressbar"`, `Table` is `table`, and the hidden "Loading…" text uses `sr-only`.
 
-Not built (DESIGN cut list): keyboard shortcuts and kbd hints, the phone bottom sheet, a custom select, sortable table headers, Skip, History.
+Not built (DESIGN cut list): keyboard shortcuts and kbd hints, the phone bottom sheet, a custom select, sortable table headers, Skip, History. Cut 19 Nov: `CollapsibleHeader`, collapsible field groups and their per-group counts, the `/dev/ui` page.
 
-- [ ] **Step 1:** build each primitive; `UiPage` shows every variant and state from the DESIGN table side by side (rest, hover via a forced class is not needed; disabled-with-reason, selected, empty, arrive, open/closed), on the `ground` colour.
-- [ ] **Step 2: Check:** `npm run lint` (token check) clean, typecheck clean. Open `/dev/ui` at 1280 and 375 px; compare with `plans/design/export/` G-blocks frames; Tab through: every control shows the 2 px focus ring; reduced motion stops `Busy` and `Skeleton`.
+- [ ] **Step 1:** build each primitive with every variant and state in the DESIGN table.
+- [ ] **Step 2: Check:** `npm run lint` (token check) clean, typecheck clean. Visual and keyboard checks (2 px focus ring, reduced motion stops `Busy` and `Skeleton`, compare with `plans/design/export/` G-blocks) happen in D1–G where each primitive is used.
 - [ ] **Step 3:** slice-reviewer, owner review, commit when told: `feat(ui): primitives from DESIGN.md`.
 
 No unit tests here: the testing rules exclude styling and markup.
@@ -385,7 +380,7 @@ No unit tests here: the testing rules exclude styling and markup.
 **Files:**
 - Create: `web/src/api/{http,events,runStore,queries,subscribe}.ts`
 - Create: `web/src/features/review/{ReviewPage,ReviewLayout,ClaimHeader,RunStatusChip,AgentStepLine,AgentSteps,FieldFilter,FieldSection,FieldRow,FieldCard,AgentLine,DocumentPanel,EvidenceNote,SummaryView}.tsx`, `web/src/features/review/useFieldViews.ts`
-- Modify: `web/src/main.tsx` (QueryClient, router: `/`, `/claims/:claimId`, `/dev/ui`; one error boundary per route)
+- Modify: `web/src/main.tsx` (QueryClient, router: `/`, `/claims/:claimId`; one error boundary per route)
 - Test: `web/src/api/events.test.ts`, `web/src/api/runStore.test.ts`
 
 **Interfaces:**
@@ -423,11 +418,11 @@ No unit tests here: the testing rules exclude styling and markup.
 
 ### Slice E: Queue
 
-**Files:** Create `web/src/features/queue/{QueuePage,QueueHeader,QueueFilters,PriorityMark,NeedsYouCount,QueueTable,QueueRow,ReplayControl}.tsx`, `web/src/features/queue/search.ts`. Modify `web/src/api/queries.ts` (`useQueue(q: QueueQuery)`, `placeholderData: keepPreviousData`, no polling) and `web/src/api/subscribe.ts` (`useQueueSubscription()`: `EventSource('/api/queue/events')`, each `queue_changed` invalidates `["queue"]`; the once-on-connect message covers changes missed while disconnected). Test: `web/src/features/queue/search.test.ts`.
+**Files:** Create `web/src/features/queue/{QueuePage,QueueHeader,QueueFilters,PriorityMark,NeedsYouCount,QueueTable,QueueRow,ReplayControl}.tsx`, `web/src/features/queue/search.ts`. Modify `web/src/api/queries.ts` (`useQueue(q: QueueQuery)`, `placeholderData: keepPreviousData`, `refetchInterval: 2000`; no queue stream, see "Why the queue polls"). Test: `web/src/features/queue/search.test.ts`.
 
 **Interfaces:** `parseQueueSearch(params: URLSearchParams): { ok: true; query: QueueQuery } | { ok: false }` using `QueueQuery`; `toQueueSearch(q): URLSearchParams` drops empty values. `useRestartReplay()` mutation → POST restart, then `queryClient.resetQueries()`.
 
-- [ ] **Step 1: Failing tests:** "parses status and priority"; "returns not ok for status=done"; "drops empty filters when writing the URL".
+- [ ] **Step 1: Failing tests:** "parses status"; "returns not ok for status=done"; "drops empty filters when writing the URL".
 - [ ] **Step 2:** FAIL → implement → PASS.
 - [ ] **Step 3: Build** to DESIGN.md `queue/`: table at `lg`, the same row as a card below; the reference is the one link (to `/claims/:id`, back returns to the filtered queue); confidence "—", "— run failed", "High 95%"; "Sorted by priority, then oldest received."; `SegmentedControl` filters at `lg`, native `Select` below; `ReplayControl` (a secondary `Button` "Restart replay") in the header when `import.meta.env.DEV`.
 - [ ] **Step 4: Playwright smoke tests.** Create `playwright.config.ts` (Chromium; `webServer: npm run dev`, `reuseExistingServer: false`; `workers: 1`, tests share one server) and `e2e/smoke.spec.ts`; `beforeEach` POSTs `/api/replay/restart`. No short run file: the tests use 4809 (complete at once) and the first seconds of 4817, so each run stays under about 15 s (this replaces testing.md's "short run from `fixtures/extra/`"; propose that rule-file edit with the slice). Tests, queried by role and label:
@@ -442,13 +437,13 @@ No unit tests here: the testing rules exclude styling and markup.
 - [ ] **Step 5: Check by hand:** rows go queued → running → needs review / failed without reload; `?status=done` shows "That filter doesn't exist" + "Show all claims"; filters survive reload; restart from the button and from `npm run replay` both reset the queue.
 - [ ] **Step 6:** slice-reviewer, owner review, commit when told: `feat(queue): live queue with filters and e2e smoke tests`.
 
-### Slice F: States and retry
+### Slice F: States
 
-**Files:** Create `web/src/features/review/{ReviewStates,RunFailedLine,Reconnecting}.tsx`, `web/src/features/queue/QueueStates.tsx`. Modify `ReviewPage`, `QueuePage`, `SummaryView` ("AI draft · incomplete" on a failed run), `FieldSection` (a "Not checked" section from `not_checked` on a failed run). Add `useRetry(claimId)` to `web/src/api/decisions.ts`.
+**Files:** Create `web/src/features/review/{ReviewStates,RunFailedLine,Reconnecting}.tsx`, `web/src/features/queue/QueueStates.tsx`. Modify `ReviewPage`, `QueuePage`, `SummaryView` ("AI draft · incomplete" on a failed run), `FieldSection` (a "Not checked" section from `not_checked` on a failed run).
 
-- [ ] **Step 1: Build** every state in DESIGN.md `ReviewStates` and `QueueStates` with its exact wording; skeletons shaped like the rows; "Waiting for the agent to start" for a queued run; `Reconnecting` from `connection === "reconnecting"` in a polite live region, last state kept; claim 404 → "Claim not found" + "Back to queue"; `ApiFailure.status === 0` → "Can't reach the server" + "Try again" (`refetch`). `RunFailedLine` per DESIGN with "Retry run" only when `error.retryable && retry_available`. Retry keeps decisions; the reducer and the merge rule already handle the re-emitted fields.
-- [ ] **Step 2: Check by hand:** 4822 fails at about 35.75 s: failed step marked, 9 fields reviewable, summary marked incomplete, "Not checked: policy cover and excess", queue `failed`; retry → running → needs review, decided fields stay; stop the server mid-run → "Reconnecting…", restart it → catches up without duplicates; `/claims/CLM-2026-999999` → not found; empty filter result → "No claims match" + "Clear filter".
-- [ ] **Step 3:** typecheck, lint, test green; slice-reviewer, owner review, commit when told: `feat: loading, error, failure states and retry`.
+- [ ] **Step 1: Build** every state in DESIGN.md `ReviewStates` and `QueueStates` with its exact wording; skeletons shaped like the rows; "Waiting for the agent to start" for a queued run; `Reconnecting` from `connection === "reconnecting"` in a polite live region, last state kept; claim 404 → "Claim not found" + "Back to queue"; `ApiFailure.status === 0` → "Can't reach the server" + "Try again" (`refetch`). `RunFailedLine` per DESIGN, with no retry button (T8 cut; README says so).
+- [ ] **Step 2: Check by hand:** 4822 fails at about 35.75 s: failed step marked, 9 fields reviewable, summary marked incomplete, "Not checked: policy cover and excess", queue `failed`; stop the server mid-run → "Reconnecting…", restart it → catches up without duplicates; `/claims/CLM-2026-999999` → not found; empty filter result → "No claims match" + "Clear filter".
+- [ ] **Step 3:** typecheck, lint, test green; slice-reviewer, owner review, commit when told: `feat: loading, error and failure states`.
 
 ### Slice G: Phone and accessibility
 
@@ -465,4 +460,4 @@ No unit tests here: the testing rules exclude styling and markup.
 - [ ] README (D1): setup, run, test and replay commands, time spent, what was cut (DESIGN cut list, phone document sheet, anything cut from T-rows), the confidence thresholds, the T2 matching rule, replay restarts the whole replay at normal speed (no speed or per-claim control), `npm run test:e2e`, the 7 sections. D3: global CLAUDE.md turned off, Superpowers skills used.
 - [ ] Record the video (D2) and link it at the top of the README.
 
-If time runs short, cut in this order (BRIEFING): T8 retry (Slice F, then README says so and no button appears), P1 priority filter, motion polish. Never cut the merge rule, inline citations, the failure state or the phone layout.
+Already cut (owner, 19 Nov): T8 retry, P1 priority filter, the `/dev/ui` page, collapsible field groups with per-group counts, keeping past decisions. The README lists them. If time runs short, cut next: motion polish. Never cut the merge rule, inline citations, the failure state or the phone layout.

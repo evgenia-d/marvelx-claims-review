@@ -45,7 +45,7 @@ Jobs, in the reviewer's words:
   - `revised after your decision`: the reviewer decided, then the agent changed the value. The decision and the shown value stay as they were until the reviewer decides again (T3).
 
   Undo returns a field to `pending`. "Revised after your decision" is a field status, never a claim status: the queue shows it only as a count.
-- **Filters** (status, priority) are kept in the URL.
+- **Filter** (status) is kept in the URL.
 - **Decisions are saved through the backend.** If saving fails, the screen goes back to the previous state and says so. If the agent revised the field since the decision was based on it, the backend refuses the save and the reviewer is told.
 - **Storage is in memory.** Restarting the replay resets runs and decisions.
 - **Out of scope:** dark mode, sign-in, translations, bulk accept (README section 4 only).
@@ -71,8 +71,8 @@ Row order is the priority order (agreed 18 Nov 2026). Part A is the working prod
 | T5 | Confidence in words and colour (Low · 41%), and stable field groups for long claims | B | 13 |
 | T6 | Document panel with the cited span highlighted | B | 14 |
 | T7 | Summary formatting stays correct when markdown is split across stream chunks | B | 15 |
-| P1 | Priority filter on the queue | B | 16 |
-| T8 | Retry a failed run (uses an extra run file we add) | B | 17 |
+| P1 | ~~Priority filter on the queue~~ Cut (owner, 19 Nov): the brief asks for one filter | B | – |
+| T8 | ~~Retry a failed run~~ Cut (owner, 19 Nov): the brief asks only for the failure state | B | – |
 | D1 | README: setup, run and test commands, time spent, what was cut, and the 7 sections from the brief | D | required |
 | D2 | 3 to 5 minute screen recording (one run as reviewer, laptop and phone size), linked at the top of the README | D | required |
 | D3 | Agent configuration committed as last used (`CLAUDE.md`, `DESIGN.md`, `plans/`, `.claude/`, `AI-LOG.md`); README says the global CLAUDE.md was turned off and Superpowers was used | D | required |
@@ -147,10 +147,10 @@ The "why" for each trap, with options weighed, is in BRIEFING.md "Traps and gaps
 - **T2:** For time, date, money and number fields, if the value can't be found in its cited text the field shows "22:40 not found in the cited text: '23:40'". It never says "wrong" or "mismatch". Text and yes/no fields are not checked. This field counts as needing attention.
 - **T3:** A decided field whose value the agent revised afterwards shows "Agent revised this after you accepted: €3,605.80 → €4,415.30", with the reason, and must be decided again before "Complete review" is enabled. A confidence-only change does not reopen a decision.
 - **T4:** A header count, "N need your attention", that filters to those fields. Reasons: low confidence, revised after a decision, no source, value not found in the citation, step warning, empty value.
-- **T5:** Confidence shown as Low (under 60%), Medium (60–85%) or High (85% and above), in words and colour. The thresholds are an assumption kept in one place and stated in the README. Fields are grouped in a stable order with a "decided N of M" count per group, and finished groups can be collapsed.
+- **T5:** Confidence shown as Low (under 60%), Medium (60–85%) or High (85% and above), in words and colour. The thresholds are an assumption kept in one place and stated in the README. Fields are grouped in a stable order under plain group headings (per-group counts and collapsing cut, 19 Nov).
 - **T6:** Selecting a field opens its document (beside the fields on laptop, as a bottom sheet on phone), scrolled to and highlighting the cited span. Only one span is highlighted at a time.
 - **T7:** Summary markdown renders from the whole text so far. Stray `**` only shows until the closing piece arrives.
-- **P1:** Priority filter, combined with the status filter, kept in the URL.
+- **P1:** Cut (19 Nov).
 - **T8:** A failed claim offers "Retry run" when the error says it is retryable. The retry plays an extra run file that gets past the policy step. Decisions already made stay, under the same rule as revisions. If this row is cut, the README says so, and there is no fake button that fails again.
 
 ## Edge cases from the fixture
@@ -166,7 +166,7 @@ The "why" for each trap, with options weighed, is in BRIEFING.md "Traps and gaps
 | Empty values | 4817 third-party policy number, witness phone | "Not found in documents"; still decidable |
 | No citation | 4817 `estimated_payable` | "No source"; counts as needing attention (T4) |
 | 49 fields over 103 s | 4817 | No jumping rows; readable on phone (A7, T5) |
-| Run fails part-way, retryable | 4822 at "Look up policy" | A3 failure state; retry (T8) |
+| Run fails part-way, retryable | 4822 at "Look up policy" | A3 failure state (retry cut) |
 | Already finished before the session | 4809 | Loads complete at once, `needs_review` |
 | Bold markers split across chunks | 4817 summary | Brief stray `**` acceptable in Part A; fixed by T7 |
 | Several runs at once | 4817, 4822, 4830 overlap | Queue shows all live; switching claims loses nothing |
@@ -179,13 +179,13 @@ The "why" for each trap, with options weighed, is in BRIEFING.md "Traps and gaps
 - "Complete review" requires every field decided, including on a failed run. The reviewer decides on the fields that exist.
 - Decisions on a completed claim are read-only, with no reopen in scope.
 - A failed claim with all fields decided can be completed and becomes `reviewed`. The queue keeps a marker that its run failed.
-- Priority filter ranked after the traps and before retry, as both are first-cut candidates in the briefing.
+- Priority filter and retry: cut by the owner on 19 Nov to fit the 4 hours.
 
 Added after the builder check:
 
 - **What "agent version" means.** It counts per field and moves only when the agent's value for that field changes. A confidence-only change doesn't move it. A revision that repeats the same value doesn't move it either.
 - **Save refused because the agent revised the field in the meantime.** The decision is not saved. The field shows the agent's new value and the reason, with "The agent changed this while you were deciding. Please decide again." Nothing the reviewer typed is lost: a correct or override value they entered stays in the input.
-- **Undo** removes the decision. The field is undecided and shows the agent's latest value. A "revised after your decision" flag goes away with the decision, because there is no decision left to reopen. Past decisions are kept by the backend but not shown in the UI.
+- **Undo** removes the decision. The field is undecided and shows the agent's latest value. A "revised after your decision" flag goes away with the decision, because there is no decision left to reopen. Replaced decisions are not kept (cut 19 Nov: never shown).
 - **"Every field decided"** means every field the run has emitted so far. A field the agent never extracted doesn't exist and can't block completion.
 - **Replay clock.** The clock starts when the backend starts. The documented command, plus a small dev-only control in the UI, restarts it. CLM-2026-004809 is complete from the first moment.
 - **Queue confidence column.** "—" while queued or running. On a failed run it shows "—" with "run failed". After completion it shows the run's last overall confidence.

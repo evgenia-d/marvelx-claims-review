@@ -33,6 +33,7 @@ describe("contract", () => {
     expect(RunEvent.safeParse({ seq: 1, at_ms: 0, claim_id: "x", type: "run_paused", payload: {} }).success).toBe(false));
   it("keeps money amounts as strings", () => expect(Money.parse({ amount: "4415.30", currency: "EUR" }).amount).toBe("4415.30"));
   it("rejects an unknown queue param", () => expect(QueueQuery.safeParse({ sort: "x" }).success).toBe(false));
+  it("rejects a priority param", () => expect(QueueQuery.safeParse({ priority: "high" }).success).toBe(false));
   it("requires a reason to override", () =>
     expect(DecisionInput.safeParse({ action: "override", based_on: 1, value: "x", reason: "  " }).success).toBe(false));
 

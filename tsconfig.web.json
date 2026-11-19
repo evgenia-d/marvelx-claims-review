@@ -16,5 +16,5 @@
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.web.tsbuildinfo"
   },
   "include": ["web", "shared"],
-  "exclude": ["shared/**/*.test.ts"]
+  "exclude": ["shared/**/*.test.ts", "shared/domain/test-events.ts"]
 }

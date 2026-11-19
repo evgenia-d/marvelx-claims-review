@@ -14,15 +14,12 @@ export const QueueItem = z.object({
   completed_at: z.iso.datetime({ offset: true }).nullable(),
 });
 
-// strictObject: an unknown param is a 400, not silently ignored.
-export const QueueQuery = z.strictObject({ status: ClaimStatus.optional(), priority: Priority.optional() });
+// strictObject: an unknown param (including the cut ?priority=) is a 400, not silently ignored.
+export const QueueQuery = z.strictObject({ status: ClaimStatus.optional() });
 export const QueueResponse = z.object({
   claims: z.array(QueueItem), // sorted: priority high -> low, then oldest received_at
-  counts: z.object({
-    // status counts within the priority filter and vice versa
-    status: z.record(ClaimStatus, z.number().int()),
-    priority: z.record(Priority, z.number().int()),
-  }),
+  // claims per status, over the whole queue, zeros included
+  counts: z.object({ status: z.record(ClaimStatus, z.number().int()) }),
 });
 
 export const DocumentMeta = z.object({ document_id: z.string(), title: z.string(), kind: z.string() });
