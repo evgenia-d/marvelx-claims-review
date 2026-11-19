@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "concurrently -n server,web \"npm:dev:server\" \"npm:dev:web\"",
-    "dev:server": "tsx watch server/src/index.ts",
+    "dev:server": "tsx watch --tsconfig tsconfig.node.json server/src/index.ts",
     "dev:web": "vite",
     "typecheck": "tsc -b",
     "lint": "eslint . && node scripts/check-tokens.mjs",

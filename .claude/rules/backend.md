@@ -21,8 +21,9 @@ paths:
 ## Replay and events
 
 - The replay clock is its own module and takes the current time as an input, so tests use a fake clock and never wait.
-- The clock starts when the server starts; a restart command and a dev-only endpoint reset runs and decisions.
-- SSE via Hono `streamSSE`: every event carries `id: <seq>`; on reconnect, resume after the `Last-Event-ID` header. Send a heartbeat comment, and stop writing when the client disconnects.
+- The clock starts when the server starts; `npm run replay` (POST /api/replay/restart, always on: evaluators use it) resets runs and decisions.
+- SSE via Hono `streamSSE`: every event carries `id: <replayId>.<seq>`; on reconnect, resume after `Last-Event-ID` only if it is from the current replay, else send `reset` and close. Send a heartbeat comment, and stop writing when the client disconnects.
+- Backend tests build the app with `makeApp(t0)` from `server/test/helpers.ts` → `{ app, tick(ms) }`; SSE tests read the body with `vi.useFakeTimers()` and `cancel()` when done.
 - Fixture files are read, never written. Our own runs live in `fixtures/extra/` in the same format.
 
 ## Storage

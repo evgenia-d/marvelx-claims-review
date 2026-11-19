@@ -28,7 +28,6 @@ export const ClaimDetail = z.object({
   documents: z.array(DocumentMeta.extend({ text: z.string() })), // small; one request, slice in the browser
   field_groups: z.array(z.object({ name: z.string(), field_ids: z.array(z.string()) })),
   not_checked: z.record(z.string(), z.string()), // step_id -> "policy cover and excess"
-  retry_available: z.boolean(), // an extra run exists for this claim (T8)
 });
 
 export type ClaimStatus = z.infer<typeof ClaimStatus>;

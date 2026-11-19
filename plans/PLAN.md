@@ -100,7 +100,7 @@ export const ClaimDetail = z.object({
 });
 ```
 
-`field_groups` and `not_checked` are our product config, not fixture data: `server/src/claimConfig.ts`, copied from the groups in `plans/design/gen/proto.py`. A field not in any group goes into a trailing "Other" group in arrival order.
+`field_groups` and `not_checked` are our product config, not fixture data: `server/src/claimConfig.ts`, copied from the groups in `plans/design/gen/proto.py`. A field not in any group goes into a trailing "Other" group in arrival order; the browser builds it with `groupFields(groups, fieldOrder)` from `shared/domain/`, because fields arrive after the detail is fetched.
 
 ### `decisions.ts`
 
@@ -141,7 +141,7 @@ Path params `ClaimParams = { claimId: z.string().regex(/^CLM-\d{4}-\d{6}$/) }`, 
 
 | Owner | Holds | Where |
 |---|---|---|
-| Server replay | per-claim timeline, clock, `epoch` (bumped on restart) | `server/src/replay.ts` |
+| Server replay | per-claim timeline, clock, `replayId` (new on every process start and restart) | `server/src/replay.ts` |
 | Server store | current decision per field, `completed_at` per claim | `server/src/decisions.ts` |
 | Run state (browser) | `RunState` per claim, from `applyEvent`; never edited by the UI | Zustand, `web/src/api/runStore.ts` |
 | Server data (browser) | queue (polled every 2 s while the queue page is open), claim detail, decisions (optimistic) | TanStack Query, `web/src/api/queries.ts` |
@@ -223,14 +223,14 @@ function formatInstant(iso: string): string;                           // "10:06
 |---|---|---|---|
 | `GET /api/queue` | `QueueQuery` | 200 `QueueResponse` | 400 `invalid_query` ("Unknown status 'done'. Use one of: queued, running, …") |
 | `GET /api/claims/:claimId` | | 200 `ClaimDetail` | 400, 404 `claim_not_found` |
-| `GET /api/claims/:claimId/events` | header `Last-Event-ID` | SSE: `id: <seq>`, `event: run`, `data: RunEvent` JSON; `retry: 2000`; `: hb` every 15 s; `event: reset` then close on restart | 400, 404 (JSON, not a stream) |
+| `GET /api/claims/:claimId/events` | header `Last-Event-ID` | SSE: `id: <replayId>.<seq>`, `event: run`, `data: RunEvent` JSON; `retry: 2000`; `: hb` every 15 s; `event: reset` then close on restart | 400, 404 (JSON, not a stream) |
 | `GET /api/claims/:claimId/decisions` | | 200 `DecisionsResponse` | 400, 404 |
 | `PUT /api/claims/:claimId/fields/:fieldId/decision` | `DecisionInput` | 200 `Decision` | 400 `invalid_body` / `invalid_value`, 404 `claim_not_found` / `field_not_found`, 409 `agent_revised` / `claim_completed` |
 | `DELETE /api/claims/:claimId/fields/:fieldId/decision` | | 204 (also when there was none) | 404, 409 `claim_completed` |
 | `POST /api/claims/:claimId/complete` | | 200 `QueueItem` | 404, 409 `not_ready` (message from `canComplete`) |
 | `POST /api/replay/restart` | | 204 | |
 
-**SSE delivery.** On connect: every due event in delivery order with `seq > Last-Event-ID` (all of them without the header), then every 200 ms the newly due ones. The fixture's duplicate (seq 42 again at 56.7 s) is sent as the file has it; the reducer drops it. Resuming by `seq >` can skip a late duplicate, which is harmless. Stops writing on `stream.onAbort`.
+**SSE delivery.** On connect: without `Last-Event-ID`, every due event in delivery order; with one from the current replay, those with `seq >` its seq; with one from another replay or process start (or unreadable), `event: reset` and close, so a tab that missed a restart (offline, or the server process restarted) starts over instead of mixing two replays (owner, 19 Nov). Then every 200 ms the newly due ones. The fixture's duplicate (seq 42 again at 56.7 s) is sent as the file has it; the reducer drops it. Resuming by `seq >` can skip a late duplicate, which is harmless. Stops writing on `stream.onAbort`.
 
 **Clock.** `createReplay(catalog, now: () => number)`. `elapsed = now() - startedAt`. An event of a run segment is due when the segment's start is `null` (4809: preloaded) or `start + at_ms <= elapsed`. `updated_at` = the wall time the last due event was delivered (for 4809: `started_at` + its `at_ms`), or the last decision or completion if later.
 
@@ -337,7 +337,7 @@ Test helpers in `shared/domain/test-events.ts`: `extracted(seq, field_id, value,
 - Test: `server/test/{queue,claims,events,decisions,replay}.test.ts`
 
 **Interfaces:**
-- `createReplay(catalog, now: () => number): Replay` with `due(claimId): RunEvent[]`, `run(claimId): RunState` (folded with `applyEvents`), `lastDeliveredAt(claimId): number | null`, `epoch(): number`, `restart(): void`.
+- `createReplay(catalog, now: () => number): Replay` with `due(claimId): RunEvent[]`, `run(claimId): RunState` (folded with `applyEvents`), `lastDeliveredAt(claimId): number | null`, `replayId(): string`, `restart(): void`.
 - `interface DecisionStore { list(claimId); get(claimId, fieldId); save(d: Decision); remove(claimId, fieldId); complete(claimId, at); completedAt(claimId); clear() }` + `createMemoryDecisionStore()`. `save` replaces the field's decision; old decisions are not kept.
 - `createApp({ catalog, replay, store, now }): Hono`. Test helper `makeApp(t0 = 0)` returns `{ app, tick(ms) }` with a fake clock.
 - Service returns `Result<T> = { ok: true; value: T } | { ok: false; status: 400 | 404 | 409; code: string; message: string }`; routes only translate it.
@@ -387,7 +387,7 @@ No unit tests here: the testing rules exclude styling and markup.
 - `http.ts`: `getJson<T>(path, schema): Promise<T>` and `sendJson`; non-2xx → throws `ApiFailure { status, code, message }` (parsed with `ApiError`), network → `ApiFailure { status: 0, code: "unreachable" }`.
 - `events.ts`: `parseRunEvent(data: string): RunEvent | null` (bad JSON or schema → `null` + `console.warn`).
 - `runStore.ts`: `useRunStore` with `runs: Record<string, RunState>`, `connection: Record<string, "connecting" | "live" | "reconnecting" | "closed">`, actions `apply(claimId, event)`, `reset(claimId)`, `setConnection`. Selectors: `useRunField(claimId, fieldId)`, `useRunMeta(claimId)` (status, steps, error, overall_confidence), `useFieldOrder(claimId)`, `useSummary(claimId)`.
-- `subscribe.ts`: `useRunSubscription(claimId)`: the one effect; opens `EventSource('/api/claims/:id/events')`, `run` → `apply`, `reset` → `reset(claimId)` + invalidate the claim's queries + reopen; `onerror` → `reconnecting`; cleanup closes.
+- `subscribe.ts`: `useRunSubscription(claimId)`: the one effect; opens `EventSource('/api/claims/:id/events')`, `run` → `apply`, `reset` → `reset(claimId)` + invalidate the claim's queries + `close()` the old EventSource and open a new one (a new EventSource sends no `Last-Event-ID`; the old one would reconnect with the stale id and be reset again, every 2 s); `onerror` → `reconnecting`; cleanup closes.
 - `queries.ts`: `useClaim(claimId)`, `useDecisions(claimId)`, `useDocuments(claimId)` (a `select` on the claim query → `Record<document_id, text>`).
 - `useFieldViews(claimId)`: `FieldView` per field from run store + decisions + documents.
 - Header status: `claimStatus(useRunMeta(claimId).status, claim.completed_at)`, the same function the server uses for the queue.
