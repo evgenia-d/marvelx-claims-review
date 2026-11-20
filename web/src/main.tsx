@@ -1,8 +1,9 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createBrowserRouter, Link, RouterProvider, useRouteError } from "react-router";
+import { createBrowserRouter, RouterProvider, useRouteError } from "react-router";
 import { ApiFailure } from "./api/http";
+import { QueuePage } from "./features/queue/QueuePage";
 import { ReviewPage } from "./features/review/ReviewPage";
 import { Button, Message } from "./ui";
 import "./index.css";
@@ -17,26 +18,6 @@ const queryClient = new QueryClient({
     },
   },
 });
-
-// Placeholder until the queue (Slice E): links to the fixture claims.
-const CLAIMS = ["CLM-2026-004817", "CLM-2026-004822", "CLM-2026-004830", "CLM-2026-004809"];
-
-function QueuePlaceholder() {
-  return (
-    <main className="mx-auto flex max-w-xl flex-col gap-3 p-8">
-      <h1 className="font-serif text-xl tracking-tight text-ink">Claims queue</h1>
-      <ul className="flex flex-col gap-1">
-        {CLAIMS.map((id) => (
-          <li key={id}>
-            <Link to={`/claims/${id}`} className="font-mono text-md text-primary underline">
-              {id}
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </main>
-  );
-}
 
 // One per route, so a crash in one screen doesn't blank the app.
 function RouteError() {
@@ -59,9 +40,9 @@ function RouteError() {
 }
 
 const router = createBrowserRouter([
-  { path: "/", Component: QueuePlaceholder, ErrorBoundary: RouteError },
+  { path: "/", Component: QueuePage, ErrorBoundary: RouteError },
   { path: "/claims/:claimId", Component: ReviewPage, ErrorBoundary: RouteError },
-  { path: "*", Component: QueuePlaceholder, ErrorBoundary: RouteError },
+  { path: "*", Component: QueuePage, ErrorBoundary: RouteError },
 ]);
 
 const root = document.getElementById("root");

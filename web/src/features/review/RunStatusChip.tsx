@@ -23,6 +23,9 @@ function chip(status: ClaimStatus): { text: string; tone: BadgeProps["tone"]; ic
   }
 }
 
+/** The chip's words ("Run failed"), for labels that must match what the chip shows. */
+export const statusText = (status: ClaimStatus): string => chip(status).text;
+
 export function RunStatusChip({ status }: { status: ClaimStatus }) {
   const { text, tone, icon } = chip(status);
   return (

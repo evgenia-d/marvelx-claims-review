@@ -32,6 +32,14 @@ export function formatInstant(iso: string, timeZone?: string): string {
   );
 }
 
+// "18 Sep, 10:05" in the viewer's time zone (queue received / updated). timeZone is for tests.
+export function formatDayTime(iso: string, timeZone?: string): string {
+  const day = new Intl.DateTimeFormat(LOCALE, { day: "numeric", month: "short", timeZone }).formatToParts(new Date(iso));
+  const part = (type: string) => day.find((p) => p.type === type)?.value ?? "";
+  // Fixed 3-letter months, as in formatDate (en-IE Intl writes "Sept").
+  return `${part("day")} ${part("month").slice(0, 3)}, ${formatInstant(iso, timeZone)}`;
+}
+
 const NUMBER = new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 20 });
 
 // The value as display text, or null for an empty value (the caller shows "Not found").

@@ -4,6 +4,7 @@ import type { ClaimDetail, QueueItem } from "@shared/contract";
 import { canComplete, claimStatus, type FieldView } from "@shared/domain";
 import { useConnection, useRunMeta } from "../../api/runStore";
 import { Alert, Busy, IconBack, IconButton, IconTriangle, ProgressBar, SkeletonBar } from "../../ui";
+import { queuePath } from "../queue/search";
 import { CompleteReview } from "./CompleteReview";
 import { RunStatusChip } from "./RunStatusChip";
 
@@ -90,7 +91,7 @@ export function ClaimHeaderFrame({ claim, status, step, end, below }: FrameProps
   return (
     <header className="border-b border-line bg-surface">
       <div className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 xl:flex-nowrap">
-        <IconButton label="Back to queue" icon={<IconBack />} onClick={() => navigate("/")} tooltipAlign="start" />
+        <IconButton label="Back to queue" icon={<IconBack />} onClick={() => navigate(queuePath())} tooltipAlign="start" />
         {claim ? (
           <>
             <h1 className="shrink-0 font-mono text-md font-medium text-ink">{claim.claim_id}</h1>

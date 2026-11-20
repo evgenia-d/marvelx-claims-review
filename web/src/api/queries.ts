@@ -1,8 +1,8 @@
 // Server data for the review screen. Keys live in one place so invalidation (decisions, SSE reset)
 // and later screens use exactly the same ones.
-import { queryOptions, useQuery } from "@tanstack/react-query";
-import { ClaimDetail, DecisionsResponse, type ClaimStatus } from "@shared/contract";
-import { getJson } from "./http";
+import { keepPreviousData, queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ClaimDetail, DecisionsResponse, QueueResponse, type ClaimStatus, type QueueQuery } from "@shared/contract";
+import { getJson, sendJson } from "./http";
 
 export const queryKeys = {
   queue: (status?: ClaimStatus) => ["queue", status ?? "all"] as const,
@@ -34,3 +34,25 @@ const documentTexts = (detail: ClaimDetail): Record<string, string> =>
 // The document text by document_id, for citedText() and the document panel. Shares the claim request.
 export const useDocuments = (claimId: string) =>
   useQuery({ ...claimQuery(claimId), select: documentTexts });
+
+// The queue polls: no queue stream (see plans/PLAN.md "Why the queue polls"). While the filter
+// changes, the previous list stays on screen instead of flashing a skeleton.
+export const useQueue = (q: QueueQuery) =>
+  useQuery({
+    queryKey: queryKeys.queue(q.status),
+    queryFn: ({ signal }) => {
+      const search = new URLSearchParams(Object.entries(q).filter(([, v]) => v)).toString();
+      return getJson(search ? `/queue?${search}` : "/queue", QueueResponse, signal);
+    },
+    placeholderData: keepPreviousData,
+    refetchInterval: 2000,
+  });
+
+// Dev control: restart every run from zero. Everything cached is stale afterwards, so reset it all.
+export function useRestartReplay() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => sendJson("POST", "/replay/restart", undefined, null),
+    onSuccess: () => queryClient.resetQueries(),
+  });
+}

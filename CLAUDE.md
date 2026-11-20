@@ -32,7 +32,7 @@ Area rules load automatically: `.claude/rules/frontend.md` (`web/`), `.claude/ru
 - `npm run typecheck`: `tsc -b`
 - `npm run lint`: ESLint plus `scripts/check-tokens.mjs` (no raw hex or arbitrary values in `web/src`)
 - `npm test`: Vitest, once; `npm test -- shared/contract` for one folder
-- `npm run test:e2e`: Playwright (from Slice E)
+- `npm run test:e2e`: Playwright smoke tests + screenshots (system Chrome; starts its own dev servers, so 8787/5173 must be free)
 - `npm run replay`: restart the replay clock (needs the server running)
 
 ## Hard rules

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDate, formatInstant, formatMoney, formatValue } from "./format";
+import { formatDate, formatDayTime, formatInstant, formatMoney, formatValue } from "./format";
 
 const m = (amount: string, currency = "EUR") => ({ amount, currency });
 
@@ -22,6 +22,12 @@ describe("formatInstant", () => {
   it("shows hours and minutes in the given zone", () =>
     expect(formatInstant("2026-09-18T10:06:12+02:00", "Europe/Amsterdam")).toBe("10:06"));
   it("uses a 24-hour clock", () => expect(formatInstant("2026-09-18T22:06:12Z", "UTC")).toBe("22:06"));
+});
+
+describe("formatDayTime", () => {
+  it("shows day, short month and time in the given zone", () =>
+    expect(formatDayTime("2026-09-18T10:05:00+02:00", "Europe/Amsterdam")).toBe("18 Sep, 10:05"));
+  it("writes September as Sep", () => expect(formatDayTime("2026-09-03T08:00:00Z", "UTC")).toBe("3 Sep, 08:00"));
 });
 
 describe("formatValue", () => {

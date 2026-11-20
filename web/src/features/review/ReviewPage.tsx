@@ -16,6 +16,7 @@ import {
 import type { FieldView, RunState } from "@shared/domain";
 import { useRunSubscription } from "../../api/subscribe";
 import { Button, Message } from "../../ui";
+import { queuePath } from "../queue/search";
 import { AgentStepLine } from "./AgentStepLine";
 import { ClaimHeader } from "./ClaimHeader";
 import { DocumentPanel } from "./DocumentPanel";
@@ -45,7 +46,7 @@ function ClaimNotFound({ claimId }: { claimId: string }) {
         headline="Claim not found"
         body={`There is no claim ${claimId}.`}
         action={
-          <Button variant="secondary" autoFocus onClick={() => navigate("/")}>
+          <Button variant="secondary" autoFocus onClick={() => navigate(queuePath())}>
             Back to queue
           </Button>
         }
