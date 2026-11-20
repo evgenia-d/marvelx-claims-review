@@ -14,11 +14,13 @@ export type SegmentedControlProps = {
   items: SegmentedItem[];
   value: string;
   onChange: (id: string) => void;
+  /** Fill the container: full width, equal-width segments. */
+  stretch?: boolean;
 };
 
-export function SegmentedControl({ label, items, value, onChange }: SegmentedControlProps) {
+export function SegmentedControl({ label, items, value, onChange, stretch = false }: SegmentedControlProps) {
   return (
-    <div role="group" aria-label={label} className="inline-flex gap-0.5 rounded-md bg-subtle p-0.5">
+    <div role="group" aria-label={label} className={cx("gap-0.5 rounded-md bg-subtle p-0.5", stretch ? "flex w-full" : "inline-flex")}>
       {items.map((item) => {
         const pressed = item.id === value;
         return (
@@ -28,7 +30,8 @@ export function SegmentedControl({ label, items, value, onChange }: SegmentedCon
             aria-pressed={pressed}
             onClick={() => onChange(item.id)}
             className={cx(
-              "inline-flex h-11 items-center gap-1.5 rounded-sm px-3 text-sm font-medium lg:h-7",
+              "inline-flex h-11 items-center gap-1.5 rounded-sm text-sm font-medium whitespace-nowrap lg:h-7",
+              stretch ? "flex-1 justify-center px-2" : "px-3",
               focusRing,
               pressed ? "bg-surface text-ink shadow-lift" : "text-ink-2 hover:text-ink",
             )}

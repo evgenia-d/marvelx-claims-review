@@ -29,6 +29,12 @@ describe("applyEvent", () => {
     expect(again.fields.total?.version).toBe(2);
   });
 
+  it("records when each agent entry arrived", () => {
+    const s = run(started(1), extracted(3, "total", m("10.00")), revised(4, "total", m("12.00")), confidence(5, "total", 0.5));
+    expect(s.fields.total?.history.map((e) => e.at_ms)).toEqual([300, 400, 500]);
+    expect(s.fields.total?.current.at_ms).toBe(500);
+  });
+
   it("keeps fields in arrival order", () => {
     const s = run(extracted(3, "b", "x"), extracted(4, "a", "y"), revised(5, "b", "z"), extracted(6, "c", "w"));
     expect(s.field_order).toEqual(["b", "a", "c"]);

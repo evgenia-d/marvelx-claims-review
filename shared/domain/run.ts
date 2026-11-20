@@ -7,6 +7,7 @@ export type StepState = "running" | "ok" | "warning" | "failed";
 export type Step = { step_id: string; label: string; state: StepState; note: string | null };
 export type FieldEntry = {
   seq: number;
+  at_ms: number; // when the event arrived, ms after the run started
   kind: "extracted" | "revised" | "confidence";
   value: FieldValue;
   confidence: number;
@@ -111,7 +112,7 @@ export function applyEvent(state: RunState, event: RunEvent): RunState {
       // Changes to a known field arrive as field_revised (fixtures/README), so a second extraction is dropped.
       if (base.fields[p.field_id]) return base;
       const entry: FieldEntry = {
-        seq: event.seq, kind: "extracted", value: p.value, confidence: p.confidence, source: p.source, reason: null, version: 1,
+        seq: event.seq, at_ms: event.at_ms, kind: "extracted", value: p.value, confidence: p.confidence, source: p.source, reason: null, version: 1,
       };
       const field: FieldState = {
         field_id: p.field_id,
@@ -130,7 +131,7 @@ export function applyEvent(state: RunState, event: RunEvent): RunState {
       const existing = base.fields[p.field_id];
       if (!existing) return base;
       const field = addEntry(existing, {
-        seq: event.seq, kind: "revised", value: p.value, confidence: p.confidence, source: p.source, reason: p.reason,
+        seq: event.seq, at_ms: event.at_ms, kind: "revised", value: p.value, confidence: p.confidence, source: p.source, reason: p.reason,
       });
       return { ...base, fields: { ...base.fields, [p.field_id]: field } };
     }
@@ -141,7 +142,7 @@ export function applyEvent(state: RunState, event: RunEvent): RunState {
       if (!existing) return base;
       // Value and source are unchanged, so addEntry keeps the version.
       const field = addEntry(existing, {
-        seq: event.seq, kind: "confidence", value: existing.current.value, confidence: p.confidence,
+        seq: event.seq, at_ms: event.at_ms, kind: "confidence", value: existing.current.value, confidence: p.confidence,
         source: existing.current.source, reason: p.reason,
       });
       return { ...base, fields: { ...base.fields, [p.field_id]: field } };

@@ -37,7 +37,7 @@ export function ListRow({
       className={cx(
         "flex h-13 w-full items-center gap-2 rounded-md px-2 text-left hover:bg-subtle lg:h-10",
         focusRing,
-        selected && "shadow-selected",
+        selected && "bg-surface shadow-selected",
         arrive && "animate-arrive motion-reduce:animate-none",
       )}
     >

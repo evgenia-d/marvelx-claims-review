@@ -157,7 +157,7 @@ Path params `ClaimParams = { claimId: z.string().regex(/^CLM-\d{4}-\d{6}$/) }`, 
 // run.ts
 type StepState = "running" | "ok" | "warning" | "failed";
 type Step = { step_id: string; label: string; state: StepState; note: string | null };
-type FieldEntry = { seq: number; kind: "extracted" | "revised" | "confidence"; value: FieldValue; confidence: number;
+type FieldEntry = { seq: number; at_ms: number; kind: "extracted" | "revised" | "confidence"; value: FieldValue; confidence: number;
                     source: Source; reason: string | null; version: number };
 type FieldState = { field_id: string; label: string; value_type: ValueType; step_id: string | null; // step running when extracted
                     version: number; current: FieldEntry; history: FieldEntry[] };
