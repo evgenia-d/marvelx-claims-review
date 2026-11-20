@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { cx, focusRing } from "./cx";
 
 export type ListRowProps = {
+  id?: string;
   glyph: ReactNode;
   label: string;
   value: ReactNode;
@@ -17,6 +18,7 @@ export type ListRowProps = {
 };
 
 export function ListRow({
+  id,
   glyph,
   label,
   value,
@@ -33,6 +35,7 @@ export function ListRow({
   const [arrived, setArrived] = useState(false);
   return (
     <button
+      id={id}
       type="button"
       aria-label={ariaLabel}
       aria-current={selected ? "true" : undefined}

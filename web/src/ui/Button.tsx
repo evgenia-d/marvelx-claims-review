@@ -1,9 +1,12 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
 import { cx, focusRing } from "./cx";
 
 export type ButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "disabled"> & {
   variant: "primary" | "secondary";
   icon?: ReactNode;
+  ref?: Ref<HTMLButtonElement>;
+  /** Less side padding (8 instead of 16), for a row of buttons that must share a narrow width. */
+  compact?: boolean;
 };
 
 /**
@@ -11,7 +14,7 @@ export type ButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "disable
  * `aria-describedby`). A blocked button looks grey, stays focusable and ignores clicks,
  * so a blocked submit button doesn't submit.
  */
-export function Button({ variant, icon, children, className, onClick, type = "button", ...rest }: ButtonProps) {
+export function Button({ variant, icon, compact = false, children, className, onClick, type = "button", ...rest }: ButtonProps) {
   const blocked = rest["aria-disabled"] === true || rest["aria-disabled"] === "true";
 
   return (
@@ -26,7 +29,8 @@ export function Button({ variant, icon, children, className, onClick, type = "bu
         onClick?.(event);
       }}
       className={cx(
-        "inline-flex h-11 items-center justify-center gap-1.5 rounded-md border px-4 text-base font-medium lg:h-9",
+        "inline-flex h-11 items-center justify-center gap-1.5 rounded-md border text-base font-medium lg:h-9",
+        compact ? "px-2" : "px-4",
         focusRing,
         blocked
           ? "cursor-not-allowed border-line bg-subtle text-ink-3"

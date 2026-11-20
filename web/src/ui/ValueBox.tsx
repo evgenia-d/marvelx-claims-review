@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { cx, focusRing } from "./cx";
+import { useRef, type ReactNode } from "react";
+import { ClampToggle } from "./ClampToggle";
+import { cx } from "./cx";
+import { useClamp } from "./useClamp";
 
 export type ValueBoxTone = "default" | "tint" | "muted";
 export type ValueBoxSize = "num" | "text" | "long";
@@ -26,21 +28,9 @@ export type ValueBoxProps = {
 
 /** Read-only. The value is text, never a link. */
 export function ValueBox({ tone, size, children }: ValueBoxProps) {
-  const textRef = useRef<HTMLDivElement>(null);
-  const [expanded, setExpanded] = useState(false);
-  const [overflowing, setOverflowing] = useState(false);
   const isLong = size === "long";
-
-  useEffect(() => {
-    const element = textRef.current;
-    // Only a clamped box can be measured. While expanded, keep the last answer.
-    if (!isLong || expanded || !element) return;
-    const observer = new ResizeObserver(() => {
-      setOverflowing(element.scrollHeight > element.clientHeight);
-    });
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [isLong, expanded, children]);
+  const textRef = useRef<HTMLDivElement>(null);
+  const clamp = useClamp(textRef, isLong, children);
 
   return (
     <div
@@ -56,21 +46,12 @@ export function ValueBox({ tone, size, children }: ValueBoxProps) {
           "w-full min-w-0 wrap-break-word",
           size === "num" && "truncate",
           size === "text" && "line-clamp-2",
-          isLong && !expanded && "line-clamp-4",
+          isLong && !clamp.expanded && "line-clamp-4",
         )}
       >
         {children}
       </div>
-      {isLong && (overflowing || expanded) && (
-        <button
-          type="button"
-          aria-expanded={expanded}
-          onClick={() => setExpanded((value) => !value)}
-          className={cx("mt-1 rounded-sm text-sm font-medium text-ink-2 hover:text-ink", focusRing)}
-        >
-          {expanded ? "Show less" : "Show all"}
-        </button>
-      )}
+      {clamp.showToggle && <ClampToggle expanded={clamp.expanded} onToggle={clamp.toggle} />}
     </div>
   );
 }

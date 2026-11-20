@@ -3,6 +3,9 @@ import { formatValue } from "@shared/domain";
 import { Badge, ListRow, StatusGlyph } from "../../ui";
 import { attentionText, infoTag, statusText } from "./fieldText";
 
+/** The row button's DOM id, so the phone can focus the row it came back from. */
+export const fieldRowId = (fieldId: string) => `row-${fieldId}`;
+
 type Props = {
   view: FieldView;
   /** Fade in on mount: only for a field that arrived after the stream caught up. */
@@ -24,6 +27,7 @@ export function FieldRow({ view, arrive, selected, hidden, onSelect }: Props) {
   return (
     <li hidden={hidden}>
       <ListRow
+        id={fieldRowId(view.field_id)}
         arrive={arrive}
         glyph={<StatusGlyph kind={glyph} />}
         label={view.label}

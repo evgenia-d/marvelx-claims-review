@@ -32,10 +32,12 @@ type Props = {
   check: CompleteCheck;
   /** The failure to show (the header shows it below its row), or null when a new attempt starts. */
   onFailure: (message: string | null) => void;
+  /** Phone footer: the button takes the full width, with its reason under it. */
+  stacked?: boolean;
 };
 
 /** Moves the claim to reviewed. Blocked (never `disabled`) with the reason as visible text. */
-export function CompleteReview({ claimId, check, onFailure }: Props) {
+export function CompleteReview({ claimId, check, onFailure, stacked = false }: Props) {
   const reasonId = useId();
   const complete = useComplete(claimId);
 
@@ -50,18 +52,18 @@ export function CompleteReview({ claimId, check, onFailure }: Props) {
   };
 
   return (
-    <div className="flex min-w-0 items-center gap-2">
+    <div className={stacked ? "flex min-w-0 flex-col gap-1" : "flex min-w-0 items-center gap-2"}>
       {blocked ? (
         <>
-          <Button variant="secondary" className="shrink-0" aria-disabled aria-describedby={reasonId}>
+          <Button variant="secondary" className={stacked ? "w-full" : "shrink-0"} aria-disabled aria-describedby={reasonId}>
             Complete review · {blocked.tail}
           </Button>
-          <p id={reasonId} className="min-w-0 text-sm text-ink-3">
+          <p id={reasonId} className={stacked ? "min-w-0 text-center text-sm text-ink-3" : "min-w-0 text-sm text-ink-3"}>
             {blocked.reason}
           </p>
         </>
       ) : (
-        <Button variant="primary" className="shrink-0" onClick={submit}>
+        <Button variant="primary" className={stacked ? "w-full" : "shrink-0"} onClick={submit}>
           Complete review
         </Button>
       )}

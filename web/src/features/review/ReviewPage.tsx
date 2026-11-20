@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useParams, useSearchParams } from "react-router";
+import { useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { ClaimParams, type ClaimDetail } from "@shared/contract";
 import { failedStep, groupFields } from "@shared/domain";
 import { ApiFailure } from "../../api/http";
@@ -15,16 +15,20 @@ import {
 } from "../../api/runStore";
 import type { FieldView, RunState } from "@shared/domain";
 import { useRunSubscription } from "../../api/subscribe";
-import { Message } from "../../ui";
+import { Message, useIsLaptop } from "../../ui";
 import { AgentStepLine } from "./AgentStepLine";
 import { ClaimHeader } from "./ClaimHeader";
 import { RunFailedLine } from "./RunFailedLine";
 import { DocumentPanel } from "./DocumentPanel";
 import { FieldCard } from "./FieldCard";
 import { FieldFilter, type FilterId } from "./FieldFilter";
-import { FieldRow } from "./FieldRow";
+import { fieldPosition, positionLabel } from "./fieldPosition";
+import { FieldRow, fieldRowId } from "./FieldRow";
 import { FieldSection } from "./FieldSection";
-import { nextFieldId } from "./nextField";
+import { nextFieldId, returnFocusId } from "./nextField";
+import { PhoneFieldTopBar } from "./PhoneFieldTopBar";
+import { backAction } from "./phoneNav";
+import { ReviewFooter } from "./ReviewFooter";
 import { ReviewLayout } from "./ReviewLayout";
 import { ClaimNotFound, ClaimUnavailable, WaitingForAgent } from "./ReviewStates";
 import { ReviewSkeleton } from "./ReviewSkeleton";
@@ -64,6 +68,9 @@ function ReviewContent({ detail }: { detail: ClaimDetail }) {
   // The field the screen just moved to after a decision: its card takes focus when it opens.
   const [advancedTo, setAdvancedTo] = useState<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
+  const laptop = useIsLaptop();
+  const location = useLocation();
+  const navigate = useNavigate();
   const meta = useRunMeta(claimId);
   const fieldOrder = useFieldOrder(claimId);
   const fieldsAtSync = useFieldsAtSync(claimId);
@@ -75,7 +82,9 @@ function ReviewContent({ detail }: { detail: ClaimDetail }) {
   const ordered = groups.flatMap((g) => g.field_ids);
   const defaultField = ordered.find((id) => byId.get(id)?.needsYou) ?? ordered[0];
   const fieldParam = searchParams.get("field");
-  const openId = fieldParam ?? defaultField;
+  // Laptop: the first field needing you is open until the reviewer picks one. Phone: no field is
+  // open until a row is tapped (the list is the screen).
+  const openId = fieldParam ?? (laptop ? defaultField : undefined);
 
   // Rows that were already there when the stream caught up don't fade in; only live arrivals do.
   const arrivedLive = new Set(fieldOrder.slice(fieldsAtSync));
@@ -83,7 +92,7 @@ function ReviewContent({ detail }: { detail: ClaimDetail }) {
   // Pin the default into the URL once, so it doesn't move as more fields arrive. Once ?field= is
   // set (by this or by the reviewer) it is never changed for them.
   useEffect(() => {
-    if (fieldParam !== null || defaultField === undefined) return;
+    if (!laptop || fieldParam !== null || defaultField === undefined) return;
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev);
@@ -92,8 +101,10 @@ function ReviewContent({ detail }: { detail: ClaimDetail }) {
       },
       { replace: true },
     );
-  }, [fieldParam, defaultField, setSearchParams]);
+  }, [laptop, fieldParam, defaultField, setSearchParams]);
 
+  // Laptop and phone previous / next / after a decision: replace, so one back still leaves the field
+  // screen. The router state (opened from the list) is kept.
   const openField = (fieldId: string) =>
     setSearchParams(
       (prev) => {
@@ -101,13 +112,41 @@ function ReviewContent({ detail }: { detail: ClaimDetail }) {
         next.set("field", fieldId);
         return next;
       },
-      { replace: true },
+      { replace: true, state: location.state },
     );
 
-  // A row click: the reviewer chose the field, so nothing takes focus from the row.
+  // A row click: the reviewer chose the field, so nothing takes focus from the row. On a phone it
+  // pushes a history entry marked as coming from the list, so back returns to the list.
   const select = (fieldId: string) => {
     setAdvancedTo(null);
-    openField(fieldId);
+    if (laptop) {
+      openField(fieldId);
+      return;
+    }
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.set("field", fieldId);
+        return next;
+      },
+      { state: { fromList: true } },
+    );
+  };
+
+  // Phone back: one step back in history if the field came from the list, else drop ?field=.
+  const backToList = () => {
+    if (backAction(location.state) === "history") {
+      void navigate(-1);
+      return;
+    }
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("field");
+        return next;
+      },
+      { replace: true },
+    );
   };
 
   const undecided = views.filter((v) => v.status === "pending" || v.status === "revised_after_decision");
@@ -136,7 +175,25 @@ function ReviewContent({ detail }: { detail: ClaimDetail }) {
     setAdvancedTo(next);
     openField(next);
   };
+  const position = openId === undefined ? null : fieldPosition(ordered, openId, shows);
   const openGroup = groups.find((g) => openId !== undefined && g.field_ids.includes(openId))?.name ?? null;
+
+  // Keyed by field: a draft or save message never carries over to another field, while agent
+  // updates to this field re-render the same card and keep what the reviewer is typing.
+  const fieldNode = openView ? (
+    <OpenField
+      key={openView.field_id}
+      claimId={claimId}
+      view={openView}
+      group={openGroup}
+      completedAt={detail.claim.completed_at}
+      documents={detail.documents}
+      onDecided={() => advanceFrom(openView.field_id)}
+      focusOnMount={advancedTo === openView.field_id}
+    />
+  ) : (
+    <NoOpenField fieldId={openId} runStatus={meta.status} />
+  );
 
   return (
     <ReviewLayout
@@ -192,23 +249,34 @@ function ReviewContent({ detail }: { detail: ClaimDetail }) {
         </div>
       }
       summary={<LiveSummary claimId={claimId} />}
-      field={
-        openView ? (
-          // Keyed by field: a draft or save message never carries over to another field, while agent
-          // updates to this field re-render the same card and keep what the reviewer is typing.
-          <OpenField
-            key={openView.field_id}
-            claimId={claimId}
-            view={openView}
-            group={openGroup}
-            completedAt={detail.claim.completed_at}
-            onDecided={() => advanceFrom(openView.field_id)}
-            focusOnMount={advancedTo === openView.field_id}
-          />
-        ) : (
-          <NoOpenField fieldId={openId} runStatus={meta.status} />
-        )
+      footer={
+        <>
+          <ReviewFooter detail={detail} views={views} />
+          <PhoneReturnFocus fieldParam={fieldParam} ordered={ordered} shows={shows} />
+        </>
       }
+      phoneField={
+        !laptop && fieldParam !== null ? (
+          <>
+            <PhoneFieldTopBar
+              claimId={claimId}
+              completedAt={detail.claim.completed_at}
+              group={openGroup}
+              position={position && positionLabel(position, filter)}
+              onBack={backToList}
+              prev={position?.prev ?? null}
+              next={position?.next ?? null}
+              onGo={(id) => {
+                setAdvancedTo(null);
+                openField(id);
+              }}
+            />
+            <ScrollToTop fieldId={fieldParam} />
+            {fieldNode}
+          </>
+        ) : undefined
+      }
+      field={fieldNode}
       document={<DocumentPanel view={openView} documents={detail.documents} />}
     />
   );
@@ -226,11 +294,12 @@ type OpenFieldProps = {
   view: FieldView;
   group: string | null;
   completedAt: string | null;
+  documents: ClaimDetail["documents"];
   onDecided: () => void;
   focusOnMount: boolean;
 };
 
-function OpenField({ claimId, view, group, completedAt, onDecided, focusOnMount }: OpenFieldProps) {
+function OpenField({ claimId, view, group, completedAt, documents, onDecided, focusOnMount }: OpenFieldProps) {
   // The card's confidence-change line and agent line read the field's history.
   const field = useRunField(claimId, view.field_id);
   const startedAt = useRunStore((s) => s.runs[claimId]?.started_at ?? null);
@@ -242,6 +311,7 @@ function OpenField({ claimId, view, group, completedAt, onDecided, focusOnMount 
       group={group}
       startedAt={startedAt}
       completedAt={completedAt}
+      documents={documents}
       onDecided={onDecided}
       focusOnMount={focusOnMount}
     />
@@ -256,4 +326,50 @@ function NoOpenField({ fieldId, runStatus }: { fieldId: string | undefined; runS
     return <Message headline="No field open yet" body="Fields appear here as the agent reads the documents." />;
   }
   return <Message headline="Field not found" body={`This claim has no field “${fieldId}”. Pick one from the list.`} />;
+}
+
+/**
+ * Phone: when the field screen closes, a row takes focus and scrolls to the middle (the list was
+ * hidden, not unmounted, and the page scroll was lost meanwhile). It is the row of the field just
+ * viewed, or the next row the filter shows if that one is filtered out; with no row shown, the
+ * pressed filter segment.
+ */
+function PhoneReturnFocus({
+  fieldParam,
+  ordered,
+  shows,
+}: {
+  fieldParam: string | null;
+  ordered: readonly string[];
+  shows: (id: string) => boolean;
+}) {
+  const lastOpen = useRef<string | null>(null);
+  useEffect(() => {
+    if (fieldParam !== null) {
+      lastOpen.current = fieldParam;
+      return;
+    }
+    const viewed = lastOpen.current;
+    lastOpen.current = null;
+    if (viewed === null) return;
+    const id = returnFocusId(ordered, viewed, shows);
+    const target =
+      id === null
+        ? document.querySelector<HTMLElement>('[role="group"][aria-label="Show fields"] [aria-pressed="true"]')
+        : document.getElementById(fieldRowId(id));
+    if (!target) return;
+    target.focus({ preventScroll: true });
+    target.scrollIntoView({ block: "center", behavior: "auto" });
+    // Only the return to the list matters; the filter and fields are read as they are then.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fieldParam]);
+  return null;
+}
+
+// A new field opens at the top, whatever the list's scroll was.
+function ScrollToTop({ fieldId }: { fieldId: string }) {
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [fieldId]);
+  return null;
 }

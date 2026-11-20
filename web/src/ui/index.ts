@@ -2,6 +2,7 @@ export { Alert, type AlertProps } from "./Alert";
 export { Badge, type BadgeProps } from "./Badge";
 export { Busy } from "./Busy";
 export { Button, type ButtonProps } from "./Button";
+export { ClampToggle } from "./ClampToggle";
 export { Disclosure, type DisclosureProps } from "./Disclosure";
 export { Highlight, type HighlightProps } from "./Highlight";
 export { IconButton, type IconButtonProps } from "./IconButton";
@@ -36,3 +37,5 @@ export {
 export { TextInput, type TextInputProps } from "./TextInput";
 export { Tooltip, type TooltipProps } from "./Tooltip";
 export { ValueBox, type ValueBoxProps, type ValueBoxSize, type ValueBoxTone } from "./ValueBox";
+export { useClamp } from "./useClamp";
+export { useIsLaptop } from "./useIsLaptop";

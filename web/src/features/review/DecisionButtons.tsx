@@ -9,9 +9,15 @@ type Props = {
   onDecide: (input: DecisionInput) => void;
   onUndo: () => void;
   onOpen: (mode: FormMode) => void;
-  /** The element that says the value is accepted: the reason a blocked Accept gives. */
+  /** The element that says what was decided (the decision pill): the reason a blocked Accept gives. */
   acceptedNoteId: string;
+  /** In the phone action bar: the buttons share the width, and wrap when they don't fit. */
+  bar?: boolean;
+  /** The button that opened the form just closed: it takes focus back when these buttons mount. */
+  returnFocusTo?: FormMode | null;
 };
+
+const focusElement = (el: HTMLElement | null) => el?.focus();
 
 // "Keep mine" saves the value the reviewer sees against the agent's new version. A stored accept
 // has no value, so a kept accept becomes a correction with the value accepted then (decidedOn,
@@ -39,37 +45,42 @@ function keepMine(view: FieldView): DecisionInput | null {
  *
  * Anchored right, in the same place on every field, so a reviewer going through fields doesn't
  * move the mouse: the primary is always the rightmost button, at a fixed width, so Correct and
- * Reject never shift. It is "Use new" after an agent revision, a blocked "Accept" once the agent's
- * value is accepted, and "Accept" otherwise (after a correction or rejection it goes back to the
- * agent's value). Buttons that come and go (Undo, Keep mine) sit at the left end.
+ * Reject never shift. It is "Use new" after an agent revision, a blocked "Accept" while any decision
+ * stands (an accept, a correction or a rejection; Undo, then Accept, goes back to the agent's
+ * value), and "Accept" otherwise. Buttons that come and go (Undo, Keep mine) sit at the left end.
  */
-export function DecisionButtons({ view, onDecide, onUndo, onOpen, acceptedNoteId }: Props) {
+export function DecisionButtons({ view, onDecide, onUndo, onOpen, acceptedNoteId, bar = false, returnFocusTo = null }: Props) {
   const based_on = view.agent.version;
   const accept = () => onDecide({ action: "accept", based_on });
   const kept = view.status === "revised_after_decision" ? keepMine(view) : null;
-  const accepted = view.status === "accepted";
+  // Once any decision stands, Accept is blocked: one click must not replace what the reviewer
+  // decided (or typed) with the agent's value. Undo, then Accept, is the way back to it.
+  const blocked = view.decision !== null && view.status !== "revised_after_decision";
+  // In the phone bar the buttons share the width (grow from their own width, so they wrap rather than squash) and keep their text and icon.
+  const grow = bar ? "grow" : undefined;
 
   return (
-    <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+    <div className={bar ? "flex flex-wrap items-center gap-2" : "flex flex-wrap items-center gap-2 lg:justify-end"}>
       {view.decision && <IconButton label="Undo decision" icon={<IconUndo />} onClick={onUndo} tooltipAlign="end" />}
       {kept && (
-        <Button variant="secondary" onClick={() => onDecide(kept)}>
+        <Button variant="secondary" className={grow} compact={bar} onClick={() => onDecide(kept)}>
           Keep mine
         </Button>
       )}
-      <Button variant="secondary" icon={<IconPencil />} onClick={() => onOpen("correct")}>
+      <Button variant="secondary" className={grow} compact={bar} icon={<IconPencil />} ref={returnFocusTo === "correct" ? focusElement : undefined} onClick={() => onOpen("correct")}>
         Correct
       </Button>
-      <Button variant="secondary" icon={<IconSwap />} onClick={() => onOpen("override")}>
+      <Button variant="secondary" className={grow} compact={bar} icon={<IconSwap />} ref={returnFocusTo === "override" ? focusElement : undefined} onClick={() => onOpen("override")}>
         Reject
       </Button>
       <Button
         variant="primary"
         icon={<IconCheck />}
         onClick={accept}
-        className="w-28"
-        aria-disabled={accepted || undefined}
-        aria-describedby={accepted ? acceptedNoteId : undefined}
+        className={bar ? grow : "w-28"}
+        compact={bar}
+        aria-disabled={blocked || undefined}
+        aria-describedby={blocked ? acceptedNoteId : undefined}
       >
         {view.status === "revised_after_decision" ? "Use new" : "Accept"}
       </Button>

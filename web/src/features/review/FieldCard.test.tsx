@@ -26,6 +26,7 @@ function Card({ field, onDecided }: { field: FieldState; onDecided?: () => void 
       group="Repair costs"
       startedAt={null}
       completedAt={null}
+      documents={[]}
       onDecided={onDecided}
     />
   );
@@ -62,6 +63,26 @@ function holdThePut() {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+});
+
+describe("FieldCard on a phone", () => {
+  it("puts the decisions in the action bar, which is gone while a draft is open", () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(json(200, { decisions: [] }))));
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <Card field={field} />
+      </QueryClientProvider>,
+    );
+    const bar = screen.getByRole("group", { name: "Decisions" });
+    expect(bar.contains(screen.getByRole("button", { name: "Accept" }))).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Correct" }));
+    expect(screen.queryByRole("button", { name: "Accept" })).toBeNull();
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Your value" }), { key: "Escape" });
+    // Escape closes the form and the Correct button that opened it has focus again.
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Correct" }));
+  });
 });
 
 describe("FieldCard decisions", () => {
@@ -121,6 +142,33 @@ describe("FieldCard decisions", () => {
     fireEvent.click(screen.getByRole("button", { name: "Accept" }));
     await screen.findByText(/You · accepted/);
     expect(screen.getByRole("button", { name: "Accept" }).getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it("blocks Accept after a correction, so one click can't replace the typed value", async () => {
+    const saved = { action: "correct", based_on: 1, value: { amount: "3999.99", currency: "EUR" }, claim_id: TEST_CLAIM, field_id: "total", at: "2026-11-20T10:06:00Z" };
+    let stored = false;
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
+      if (init?.method === "PUT") {
+        stored = true;
+        return Promise.resolve(json(200, saved));
+      }
+      return Promise.resolve(json(200, { decisions: stored ? [saved] : [] }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const puts = () => fetchMock.mock.calls.filter(([, init]) => init?.method === "PUT").length;
+    renderCard();
+
+    fireEvent.click(screen.getByRole("button", { name: "Correct" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Your value" }), { target: { value: "3999.99" } });
+    fireEvent.submit((screen.getByRole("textbox", { name: "Your value" }) as HTMLInputElement).form as HTMLFormElement);
+    await screen.findByText(/You · corrected/);
+    await waitFor(() => expect(puts()).toBe(1));
+
+    const accept = screen.getByRole("button", { name: "Accept" });
+    expect(accept.getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(accept);
+    await act(() => new Promise((resolve) => setTimeout(resolve, 30)));
+    expect(puts()).toBe(1);
   });
 
   it("rolls back and says Couldn't save when the save fails", async () => {

@@ -51,6 +51,7 @@ paths:
 ## UI and accessibility basics
 
 - Read `DESIGN.md` first. Tokens only, no raw hex, no arbitrary values.
+- Phone vs laptop: behaviour (push vs replace, which screen, where buttons go) reads `useIsLaptop()` from `ui/`; purely visual differences stay `lg:` classes.
 - Semantic elements, labelled inputs, visible focus ring, nothing that relies on colour alone.
 - Status changes go to a polite live region; live updates never steal focus or reset a field being edited.
 - One error boundary per route, so a crash doesn't blank the whole screen.

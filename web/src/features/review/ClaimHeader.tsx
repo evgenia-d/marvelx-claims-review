@@ -3,7 +3,7 @@ import { useNavigate } from "react-router";
 import type { ClaimDetail, QueueItem } from "@shared/contract";
 import { canComplete, claimStatus, type FailedStep, type FieldView } from "@shared/domain";
 import { useConnection, useRunMeta } from "../../api/runStore";
-import { Alert, IconBack, IconButton, IconTriangle, ProgressBar, SkeletonBar } from "../../ui";
+import { Alert, IconBack, IconButton, IconTriangle, ProgressBar, SkeletonBar, useIsLaptop } from "../../ui";
 import { queuePath } from "../queue/search";
 import { CompleteReview } from "./CompleteReview";
 import { Reconnecting } from "./Reconnecting";
@@ -12,6 +12,7 @@ import { RunStatusChip } from "./RunStatusChip";
 type Props = { detail: ClaimDetail; views: FieldView[]; failed: FailedStep | null };
 
 const DECIDED: FieldView["status"][] = ["accepted", "corrected", "overridden"];
+export const decidedCount = (views: FieldView[]): number => views.filter((v) => DECIDED.includes(v.status)).length;
 
 /** Claim id, claimant, run status, current step, how many fields are decided, and Complete review. */
 export function ClaimHeader({ detail, views, failed }: Props) {
@@ -20,7 +21,7 @@ export function ClaimHeader({ detail, views, failed }: Props) {
   const connection = useConnection(claim.claim_id);
   const status = claimStatus(meta.status, claim.completed_at);
   const current = meta.status === "running" ? meta.steps.findLast((s) => s.state === "running") : undefined;
-  const decided = views.filter((v) => DECIDED.includes(v.status)).length;
+  const decided = decidedCount(views);
   const check = canComplete(meta.status, views, claim.completed_at);
   const [completeFailed, setCompleteFailed] = useState<string | null>(null);
 
@@ -33,11 +34,12 @@ export function ClaimHeader({ detail, views, failed }: Props) {
           {connection === "reconnecting" && <Reconnecting />}
         </>
       }
+      // The running step is capped, so a long name never changes the header while the run is live.
       step={
         current ? (
-          <p className="min-w-0 truncate text-base text-ink-3">{current.label}</p>
+          <p className="max-w-80 shrink-0 truncate text-base text-ink-3">{current.label}</p>
         ) : (
-          failed?.label && <p className="min-w-0 truncate text-base text-ink-3">Stopped at {failed.label}</p>
+          failed?.label && <p className="shrink-0 text-base text-ink-3">Stopped at {failed.label}</p>
         )
       }
       end={
@@ -90,10 +92,53 @@ type FrameProps = {
  */
 export function ClaimHeaderFrame({ claim, status, step, end, below }: FrameProps) {
   const navigate = useNavigate();
+  const laptop = useIsLaptop();
+  const back = <IconButton label="Back to queue" icon={<IconBack />} onClick={() => navigate(queuePath())} tooltipAlign="start" />;
+  // Polite: status changes and reconnects are announced, never focused.
+  const live = (
+    <div aria-live="polite" className="flex items-center gap-2">
+      {status}
+    </div>
+  );
+
+  // Phone: two lines. Back, then the id with the chip pushed right, then claimant and product.
+  // The current step and Complete review are not here (the step line and the footer have them).
+  if (!laptop) {
+    return (
+      <header className="border-b border-line bg-surface">
+        <div className="flex min-h-14 items-center gap-2 px-4 py-1">
+          {back}
+          <div className="flex min-w-0 flex-1 flex-col">
+            {claim ? (
+              <>
+                <div className="flex items-center justify-between gap-2">
+                  <h1 className="min-w-0 truncate font-mono text-md font-medium text-ink">{claim.claim_id}</h1>
+                  {live}
+                </div>
+                <p className="truncate text-base text-ink-2">
+                  {claim.claimant_name} · <span className="capitalize">{claim.product}</span>
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between gap-2">
+                  <SkeletonBar className="h-4 w-32" />
+                  {live}
+                </div>
+                <SkeletonBar className="mt-1 h-3 w-40" />
+              </>
+            )}
+          </div>
+        </div>
+        {below}
+      </header>
+    );
+  }
+
   return (
     <header className="border-b border-line bg-surface">
       <div className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 xl:flex-nowrap">
-        <IconButton label="Back to queue" icon={<IconBack />} onClick={() => navigate(queuePath())} tooltipAlign="start" />
+        {back}
         {claim ? (
           <>
             <h1 className="shrink-0 font-mono text-md font-medium text-ink">{claim.claim_id}</h1>
@@ -107,10 +152,7 @@ export function ClaimHeaderFrame({ claim, status, step, end, below }: FrameProps
             <SkeletonBar className="h-4 w-40 shrink-0" />
           </>
         )}
-        {/* Polite: status changes and reconnects are announced, never focused. */}
-        <div aria-live="polite" className="flex items-center gap-2">
-          {status}
-        </div>
+        {live}
         {step}
         <div className="ml-auto flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 xl:flex-nowrap">{end}</div>
       </div>

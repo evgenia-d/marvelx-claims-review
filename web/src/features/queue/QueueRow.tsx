@@ -36,18 +36,17 @@ export function QueueRow({ item }: { item: QueueItem }) {
         <Link
           to={href}
           aria-label={label}
-          className="font-mono text-md font-medium text-ink underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+          className="font-mono text-md font-medium text-ink underline-offset-2 max-lg:-my-3 max-lg:block max-lg:py-3 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
         >
           {item.claim_id}
         </Link>
       </TableCell>
-      <TableCell className="max-lg:order-4 max-lg:text-md max-lg:text-ink-2">{item.claimant_name}</TableCell>
-      <TableCell className="text-ink-2 capitalize max-lg:order-5 max-lg:text-md">
-        <span aria-hidden="true" className="lg:hidden">
-          {"· "}
-        </span>
-        {item.product}
+      {/* Phone: claimant and product read as one line, so they share this cell and the product cell hides. */}
+      <TableCell className="max-lg:order-4 max-lg:text-md max-lg:text-ink-2">
+        {item.claimant_name}
+        <span className="text-ink-2 capitalize lg:hidden">{` · ${item.product}`}</span>
       </TableCell>
+      <TableCell className="text-ink-2 capitalize max-lg:hidden">{item.product}</TableCell>
       <TableCell className="max-lg:order-2 max-lg:ml-auto">
         <RunStatusChip status={item.status} />
       </TableCell>

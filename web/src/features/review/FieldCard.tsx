@@ -1,15 +1,17 @@
 import { useId, useRef, useState } from "react";
-import type { DecisionInput, ValueType } from "@shared/contract";
+import type { ClaimDetail, DecisionInput, ValueType } from "@shared/contract";
 import { formatValue, inputText, type FieldState, type FieldView } from "@shared/domain";
 import { useDecide, useUndo } from "../../api/decisions";
 import { ApiFailure } from "../../api/http";
 import { useRunStore } from "../../api/runStore";
-import { Badge, ValueBox, type ValueBoxSize } from "../../ui";
+import { Badge, ValueBox, useIsLaptop, type ValueBoxSize } from "../../ui";
 import { AgentLine } from "./AgentLine";
+import { CitedText } from "./CitedText";
 import { DecisionButtons, type FormMode } from "./DecisionButtons";
 import { DecisionForm, type Draft } from "./DecisionForm";
 import { DecisionPill } from "./DecisionPill";
 import { FieldDetails } from "./FieldDetails";
+import { PhoneActionBar } from "./PhoneActionBar";
 import { ReadOnlyNote } from "./ReadOnlyNote";
 import { SaveFailed, type SaveFailure } from "./SaveFailed";
 import { DECISION_VERB, attentionText, percent } from "./fieldText";
@@ -45,6 +47,8 @@ type Props = {
   group: string | null;
   startedAt: string | null;
   completedAt: string | null;
+  /** The claim's documents: the phone shows the cited passage under the value. */
+  documents: ClaimDetail["documents"];
   /** Called once a decision is saved, unless a later click on this field came after it. */
   onDecided?: () => void;
   /** Focus the field name when the card opens: set when the screen moved here after a decision. */
@@ -58,13 +62,16 @@ const focusElement = (el: HTMLElement | null) => el?.focus();
  * The open field: name and tags, value, pill and agent line, decisions, details. The caller keys it
  * by field id, so the draft and the save message belong to one field and survive agent updates.
  */
-export function FieldCard({ claimId, view, field, group, startedAt, completedAt, onDecided, focusOnMount }: Props) {
+export function FieldCard({ claimId, view, field, group, startedAt, completedAt, documents, onDecided, focusOnMount }: Props) {
+  const laptop = useIsLaptop();
   const value = formatValue(view.value_type, view.shown.value);
   const size = SIZE[view.value_type];
   const confidence = confidenceChange(field);
   // Local until saved: cleared only when the save succeeds, so a refused or failed save keeps the text.
   const [draft, setDraft] = useState<Draft | null>(null);
   const [failure, setFailure] = useState<SaveFailure | null>(null);
+  // Cancel / Escape give focus back to the button that opened the form.
+  const [returnFocusTo, setReturnFocusTo] = useState<FormMode | null>(null);
   const decide = useDecide(claimId, view.field_id);
   const undo = useUndo(claimId, view.field_id);
   const pillId = useId();
@@ -113,6 +120,7 @@ export function FieldCard({ claimId, view, field, group, startedAt, completedAt,
   // draft counts as a click: a save still in flight then lands without moving the screen on.
   const open = (mode: FormMode) => {
     lastClick.current++;
+    setReturnFocusTo(null);
     setDraft({
       mode,
       value: mode === "correct" ? inputText(view.agent.value) : "",
@@ -123,10 +131,25 @@ export function FieldCard({ claimId, view, field, group, startedAt, completedAt,
   // T3: the decision stays, and the card says what the agent changed under it.
   const revisedAfter = view.status === "revised_after_decision" && view.decidedOn ? view.decision : null;
 
+  const buttons = (bar: boolean) => (
+    <DecisionButtons
+      view={view}
+      bar={bar}
+      returnFocusTo={returnFocusTo}
+      onDecide={(input) => save(input, false)}
+      onUndo={undoDecision}
+      onOpen={open}
+      acceptedNoteId={pillId}
+    />
+  );
+  const showButtons = completedAt === null && !draft;
+
   return (
-    <article aria-labelledby="open-field-name">
-      <div className="flex h-12 items-center border-b border-line px-6 text-base text-ink-3">{group}</div>
-      <div className="flex flex-col gap-3 p-6">
+    // On a phone the card fills the screen under its top bar, so the action bar sits at the bottom.
+    <article aria-labelledby="open-field-name" className="flex flex-1 flex-col">
+      {/* On a phone the screen's top bar already names the group. */}
+      {laptop && <div className="flex h-12 items-center border-b border-line px-6 text-base text-ink-3">{group}</div>}
+      <div className="flex flex-1 flex-col gap-3 p-4 lg:p-6">
         {/* Name and tags on the left, decisions pinned top-right (below lg they wrap under the name).
             The tags wrap inside their own column, so they never push the buttons around. */}
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
@@ -163,23 +186,13 @@ export function FieldCard({ claimId, view, field, group, startedAt, completedAt,
               )}
             </span>
           </div>
-          {/* While a draft is open, its Save / Cancel below are the only actions. */}
+          {/* While a draft is open, its Save / Cancel below are the only actions. On a phone the buttons are in the bar. */}
           {completedAt !== null ? (
             <div className="lg:flex lg:min-h-9 lg:items-center">
               <ReadOnlyNote completedAt={completedAt} />
             </div>
           ) : (
-            !draft && (
-              <div className="shrink-0">
-                <DecisionButtons
-                  view={view}
-                  onDecide={(input) => save(input, false)}
-                  onUndo={undoDecision}
-                  onOpen={open}
-                  acceptedNoteId={pillId}
-                />
-              </div>
-            )
+            showButtons && laptop && <div className="shrink-0">{buttons(false)}</div>
           )}
         </div>
 
@@ -199,6 +212,8 @@ export function FieldCard({ claimId, view, field, group, startedAt, completedAt,
           </span>
           <AgentLine field={field} startedAt={startedAt} />
         </div>
+
+        {!laptop && <CitedText view={view} documents={documents} />}
 
         {/* Before → after: the last value change (its reason is under "Why it changed"). After a
             decision, it says the agent revised the value the reviewer decided on. */}
@@ -238,7 +253,10 @@ export function FieldCard({ claimId, view, field, group, startedAt, completedAt,
             size={size}
             onChange={setDraft}
             onSave={saveDraft}
-            onCancel={() => setDraft(null)}
+            onCancel={() => {
+              setReturnFocusTo(draft.mode);
+              setDraft(null);
+            }}
           />
         )}
 
@@ -247,6 +265,7 @@ export function FieldCard({ claimId, view, field, group, startedAt, completedAt,
           yourReason={view.decision?.action === "override" ? view.decision.reason : null}
         />
       </div>
+      {!laptop && showButtons && <PhoneActionBar>{buttons(true)}</PhoneActionBar>}
     </article>
   );
 }

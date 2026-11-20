@@ -30,3 +30,12 @@ for (const { width, height } of SIZES) {
     });
   }
 }
+
+// An open field on a phone: top bar, cited text and the action bar.
+test("review-4809 field at 375", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/claims/CLM-2026-004809");
+  await page.getByRole("navigation", { name: "Fields" }).locator("li").getByRole("button").first().click();
+  await page.getByRole("button", { name: "Accept", exact: true }).waitFor();
+  await page.screenshot({ path: "e2e/screenshots/review-4809-field-375.png" });
+});

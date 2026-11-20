@@ -93,6 +93,13 @@ export function ReviewSkeleton({ claimId, detail }: Props) {
         </div>
       }
       summary={null}
+      footer={
+        <div className="sticky bottom-0 flex flex-col gap-2 border-t border-line bg-surface p-4" aria-hidden="true">
+          <SkeletonBar className="h-4 w-full" />
+          <SkeletonBar shape="box" className="h-11 w-full" />
+          <SkeletonBar className="mx-auto h-4 w-40" />
+        </div>
+      }
       field={
         <div aria-hidden="true">
           <div className="flex h-12 items-center border-b border-line px-6">
