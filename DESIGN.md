@@ -26,7 +26,7 @@ Owner rules that shape everything:
 - **Decide only in the open field.** No decision buttons on rows. **No "accept all"** anywhere.
 - **No dashed lines** anywhere (dashed reads as "empty slot"). No confidence colours or meters.
 - **Value size follows the field's type, never its length,** so a revision never resizes a value.
-- **No saving state.** A decision shows at once; a failed save rolls back with a message.
+- **Decisions wait for the server** (owner, 20 Nov; was "no saving state, shows at once"). While a save is in flight the decision buttons are blocked and the tapped one shows the busy dot; on success the decision shows and the screen moves on in one step. A failed save leaves the field as it was, with a message. Why: the optimistic write painted the old field as decided just before the next one opened, so the phone screen jumped twice per decision.
 - Type: **serif** only for the open field's name and state headlines; **Inter** for sentences and controls; **mono** for values, amounts, IDs, scores, citations, the document, tags and uppercase section labels. Never mono for running text.
 
 ## Tokens (`web/src/index.css`)
@@ -185,7 +185,7 @@ No claim, field, decision or run concepts. Props in, markup out. Names describe 
 | `PhoneActionBar` | DecisionButtons | sticky, 48 high, the same buttons as laptop |
 | `DecisionForm` | TextInput | Correct starts with the agent's value; Reject starts empty and adds a one-line reason (required) |
 | `FieldDetails` | Disclosure | "Why it changed" · "Your reason" |
-| `SaveFailed` | Alert box | "Couldn't save. Try again" after rollback. Refused (409): "The agent changed this while you were deciding. Please decide again." + "Decide again" tag; typed text stays |
+| `SaveFailed` | Alert box | "Couldn't save. Try again" after a failed save (network, 5xx); for other refusals, the server's message. Refused (409): "The agent changed this while you were deciding. Please decide again." + "Decide again" tag; typed text stays |
 | `ReadOnlyNote` | text | "Read-only · review completed 15:06"; replaces the buttons |
 | `DocumentPanel` | Highlight, EvidenceNote | always shown on laptop, follows the open field, scrolls to the one highlighted span. Document text addressed to the system stays plain document text |
 | `EvidenceNote` | text | "€ 1,252.00 not found in the cited text" · "No source: The agent cited no document for this value." Never "wrong" or "mismatch" |

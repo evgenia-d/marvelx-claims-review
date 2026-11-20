@@ -32,16 +32,16 @@ function Card({ field, onDecided }: { field: FieldState; onDecided?: () => void 
   );
 }
 
-function renderCard(onDecided?: () => void) {
+function renderCard(onDecided?: () => void, start: { field?: FieldState; decisions?: unknown[] } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity }, mutations: { retry: false } } });
-  client.setQueryData(queryKeys.decisions(TEST_CLAIM), { decisions: [] });
+  client.setQueryData(queryKeys.decisions(TEST_CLAIM), { decisions: start.decisions ?? [] });
   const ui = (f: FieldState) => (
     <QueryClientProvider client={client}>
       <Card field={f} onDecided={onDecided} />
     </QueryClientProvider>
   );
-  const result = render(ui(field));
-  return { agentRevises: () => result.rerender(ui(fieldRevised)) };
+  const result = render(ui(start.field ?? field));
+  return { client, agentRevises: () => result.rerender(ui(fieldRevised)) };
 }
 
 const json = (status: number, body: unknown) =>
@@ -52,12 +52,14 @@ const accepted = () =>
 // The decision PUT waits until the test calls answer(); every other request answers at once.
 function holdThePut() {
   let answer = () => {};
+  let sent = false;
   const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
-    if (init?.method === "PUT") return new Promise<Response>((resolve) => (answer = () => resolve(accepted())));
+    if (init?.method === "PUT") return new Promise<Response>((resolve) => ((sent = true), (answer = () => resolve(accepted()))));
     return Promise.resolve(init?.method === "DELETE" ? new Response(null, { status: 204 }) : json(200, { decisions: [] }));
   });
   vi.stubGlobal("fetch", fetchMock);
-  return { answer: () => answer() };
+  // Waits until the PUT has gone out, so a test can answer right after the click.
+  return { answer: async () => { await waitFor(() => expect(sent).toBe(true)); answer(); } };
 }
 
 afterEach(() => {
@@ -108,38 +110,56 @@ describe("FieldCard decisions", () => {
     expect(onDecided).not.toHaveBeenCalled();
   });
 
-  it("stays on the field when the reviewer undoes before the save returns", async () => {
+  it("blocks the decision buttons while a save is in flight", async () => {
     const put = holdThePut();
-    const onDecided = vi.fn();
-    renderCard(onDecided);
-
-    fireEvent.click(screen.getByRole("button", { name: "Accept" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Undo decision" }));
-    put.answer();
-    await waitFor(() => expect(screen.getByText("Not decided")).toBeTruthy());
-    expect(onDecided).not.toHaveBeenCalled();
-  });
-
-  it("stays on the field when the reviewer opens Correct before the save returns", async () => {
-    const put = holdThePut();
-    const onDecided = vi.fn();
-    renderCard(onDecided);
-
-    fireEvent.click(screen.getByRole("button", { name: "Accept" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Correct" }));
-    const input = screen.getByRole("textbox", { name: "Your value" });
-    put.answer();
-    // Let the save land and its onSuccess run, then check the draft is still the reviewer's.
-    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
-    expect(onDecided).not.toHaveBeenCalled();
-    expect(screen.getByRole("textbox", { name: "Your value" })).toBe(input);
-  });
-
-  it("blocks Accept once the agent's value is accepted", async () => {
-    vi.stubGlobal("fetch", vi.fn(() => new Promise<never>(() => {})));
+    const fetchMock = vi.mocked(fetch);
+    const puts = () => fetchMock.mock.calls.filter(([, init]) => init?.method === "PUT").length;
     renderCard();
 
     fireEvent.click(screen.getByRole("button", { name: "Accept" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Accept" }).getAttribute("aria-disabled")).toBe("true"));
+    expect(screen.getByRole("button", { name: "Correct" }).getAttribute("aria-disabled")).toBe("true");
+    expect(screen.getByRole("button", { name: "Reject" }).getAttribute("aria-disabled")).toBe("true");
+    expect(screen.getByRole("button", { name: "Accept" }).parentElement?.getAttribute("aria-busy")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Accept" }));
+    expect(puts()).toBe(1);
+    await put.answer();
+    await screen.findByText(/You · accepted/);
+  });
+
+  it("blocks Undo while a save is in flight", async () => {
+    const put = holdThePut();
+    const fetchMock = vi.mocked(fetch);
+    const deletes = () => fetchMock.mock.calls.filter(([, init]) => init?.method === "DELETE").length;
+    const stored = { action: "accept", based_on: 1, claim_id: TEST_CLAIM, field_id: "total", at: "2026-11-20T10:06:00Z" };
+    renderCard(undefined, { field: fieldRevised, decisions: [stored] });
+
+    fireEvent.click(screen.getByRole("button", { name: "Keep mine" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Undo decision" }).getAttribute("aria-disabled")).toBe("true"));
+    fireEvent.click(screen.getByRole("button", { name: "Undo decision" }));
+    await act(() => new Promise((resolve) => setTimeout(resolve, 30)));
+    expect(deletes()).toBe(0);
+    await put.answer();
+  });
+
+  it("shows the busy dot only on the button that started the save", async () => {
+    const put = holdThePut();
+    const stored = { action: "accept", based_on: 1, claim_id: TEST_CLAIM, field_id: "total", at: "2026-11-20T10:06:00Z" };
+    renderCard(undefined, { field: fieldRevised, decisions: [stored] });
+
+    fireEvent.click(screen.getByRole("button", { name: "Keep mine" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Use new" }).getAttribute("aria-disabled")).toBe("true"));
+    // The dot is aria-hidden, so it is found by its animation class: the least brittle handle it has.
+    expect(screen.getByRole("button", { name: "Use new" }).querySelector(".animate-live")).toBeNull();
+    await put.answer();
+  });
+
+  it("blocks Accept once the agent's value is accepted", async () => {
+    const put = holdThePut();
+    renderCard();
+
+    fireEvent.click(screen.getByRole("button", { name: "Accept" }));
+    await put.answer();
     await screen.findByText(/You · accepted/);
     expect(screen.getByRole("button", { name: "Accept" }).getAttribute("aria-disabled")).toBe("true");
   });
@@ -171,20 +191,71 @@ describe("FieldCard decisions", () => {
     expect(puts()).toBe(1);
   });
 
-  it("rolls back and says Couldn't save when the save fails", async () => {
-    // The network fails only when the test says so, so the optimistic pill can be seen first.
-    let failNetwork = () => {};
-    const offline = new Promise<never>((_, reject) => (failNetwork = () => reject(new TypeError("Failed to fetch"))));
-    vi.stubGlobal("fetch", vi.fn(() => offline));
+  it("keeps the field undecided and says Couldn't save when the save fails", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new TypeError("Failed to fetch"))));
     renderCard();
 
     fireEvent.click(screen.getByRole("button", { name: "Accept" }));
-    expect(await screen.findByText(/You · accepted/)).toBeTruthy();
-    failNetwork();
 
     expect((await screen.findByRole("alert")).textContent).toContain("Couldn't save. Try again");
     expect(screen.queryByText(/You · accepted/)).toBeNull();
     expect(screen.getByText("Not decided")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Accept" }).getAttribute("aria-disabled")).toBeNull();
+  });
+
+  it("shows the agent's value next to the reviewer's after a correction", async () => {
+    const saved = { action: "correct", based_on: 1, value: { amount: "3700.00", currency: "EUR" }, claim_id: TEST_CLAIM, field_id: "total", at: "2026-11-20T10:06:00Z" };
+    let stored = false;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_url: string, init?: RequestInit) => {
+        if (init?.method === "PUT") {
+          stored = true;
+          return Promise.resolve(json(200, saved));
+        }
+        return Promise.resolve(json(200, { decisions: stored ? [saved] : [] }));
+      }),
+    );
+    renderCard();
+
+    fireEvent.click(screen.getByRole("button", { name: "Correct" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Your value" }), { target: { value: "3700.00" } });
+    fireEvent.submit((screen.getByRole("textbox", { name: "Your value" }) as HTMLInputElement).form as HTMLFormElement);
+    await screen.findByText(/You · corrected/);
+
+    expect(screen.getByRole("group", { name: "Agent's value" }).textContent).toContain("3,605.80");
+    expect(screen.getByRole("group", { name: "Your value" }).textContent).toContain("3,700.00");
+  });
+
+  const completedElsewhere = () =>
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_url: string, init?: RequestInit) =>
+        Promise.resolve(
+          init?.method === "PUT"
+            ? json(409, { error: { code: "claim_completed", message: "This claim's review is already complete." } })
+            : json(200, { decisions: [] }),
+        ),
+      ),
+    );
+
+  it("shows the server's message when the claim was completed elsewhere", async () => {
+    completedElsewhere();
+    renderCard();
+
+    fireEvent.click(screen.getByRole("button", { name: "Accept" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("This claim's review is already complete.");
+    expect(alert.textContent).not.toContain("Try again");
+  });
+
+  it("refetches the claim when the save finds it already completed", async () => {
+    completedElsewhere();
+    const { client } = renderCard();
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+
+    fireEvent.click(screen.getByRole("button", { name: "Accept" }));
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.claim(TEST_CLAIM) }));
   });
 
   it("keeps the typed value when the save is refused with 409", async () => {

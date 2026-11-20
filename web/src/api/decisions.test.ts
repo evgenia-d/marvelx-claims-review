@@ -7,13 +7,7 @@ const accept = (field_id: string, based_on = 1): Decision => ({ action: "accept"
 const correct = (field_id: string, amount: string): Decision =>
   ({ action: "correct", claim_id: "CLM-1", field_id, based_on: 1, at, value: { amount, currency: "EUR" } });
 
-describe("optimistic decisions", () => {
-  it("applies optimistic decisions in call order", () => {
-    // The order itself comes from the shared per-field scope plus onMutate running at call time.
-    // This checks the pure folding of the optimistic writes in that order: accept, then undo.
-    const afterAccept = withDecision([], accept("total_incl_vat"));
-    expect(withoutDecision(afterAccept, "total_incl_vat")).toEqual([]);
-  });
+describe("decision cache writes", () => {
   it("withDecision replaces the field's previous decision", () => {
     const list = withDecision([accept("total_incl_vat"), accept("policy_number")], correct("total_incl_vat", "4415.30"));
     expect(list).toHaveLength(2);

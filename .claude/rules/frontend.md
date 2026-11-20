@@ -36,7 +36,7 @@ paths:
 - Each field row subscribes to its own field only (selector on the run store). A summary chunk must not re-render the field list.
 - Keys are stable ids (`field_id`, step id), never array indexes.
 - New fields never reorder or shift fields already on screen while a run is live.
-- Decisions save optimistically through TanStack Query mutations (`onMutate` / `onError` rollback). A 409 shows "The agent changed this while you were deciding" and keeps what the reviewer typed.
+- Decisions wait for the server: while a save is in flight the field's decision buttons are blocked (`aria-disabled`) and the tapped one shows `Busy`; on success the server's decision is written into the cache. A failed save changes nothing on screen. A 409 shows "The agent changed this while you were deciding" and keeps what the reviewer typed.
 
 ## Untrusted text
 

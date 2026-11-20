@@ -1,7 +1,8 @@
-// Reviewer decisions: saved optimistically, one field at a time.
+// Reviewer decisions: one field at a time, written only after the server answers OK. While a save
+// is in flight the field's decision buttons are blocked (FieldCard), so there is nothing to queue.
 import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { Decision, DecisionsResponse, QueueItem, type DecisionInput } from "@shared/contract";
-import { sendJson } from "./http";
+import { ApiFailure, sendJson } from "./http";
 import { claimPath, queryKeys } from "./queries";
 
 // A field has at most one decision: a new one replaces it.
@@ -12,75 +13,42 @@ export const withoutDecision = (list: Decision[], fieldId: string): Decision[] =
 const decisionPath = (claimId: string, fieldId: string) =>
   `${claimPath(claimId)}/fields/${encodeURIComponent(fieldId)}/decision`;
 
-// Decide and undo of one field share this key and scope: the scope runs them one after another in
-// call order, the key lets onError count them.
-const fieldMutation = (claimId: string, fieldId: string) => ({
-  mutationKey: ["decision", claimId, fieldId] as const,
-  scope: { id: `decision:${claimId}:${fieldId}` },
-});
-
-type Snapshot = { previous: DecisionsResponse | undefined };
-
-function useOptimisticField<TInput, TResult>(
-  claimId: string,
-  fieldId: string,
-  mutationFn: (input: TInput) => Promise<TResult>,
-  write: (list: Decision[], input: TInput) => Decision[],
-) {
-  const queryClient = useQueryClient();
-  const key = queryKeys.decisions(claimId);
-  const { mutationKey, scope } = fieldMutation(claimId, fieldId);
-  // The scope runs a field's mutations one at a time, so any other pending one is a later click.
-  // The settling mutation still counts as pending in onError/onSettled (query-core dispatches its
-  // result after the callbacks), so 1 means "no later click".
-  const isNewest = () => queryClient.isMutating({ mutationKey, exact: true }) === 1;
-
-  return useMutation({
-    mutationKey,
-    scope,
-    mutationFn,
-    // Runs at call time, even while an earlier click of this field is still saving, so the screen
-    // shows the clicks in the order they were made.
-    onMutate: async (input): Promise<Snapshot> => {
-      await queryClient.cancelQueries({ queryKey: key });
-      const previous = queryClient.getQueryData<DecisionsResponse>(key);
-      if (previous) queryClient.setQueryData<DecisionsResponse>(key, { decisions: write(previous.decisions, input) });
-      return { previous };
-    },
-    onError: (_error, _input, snapshot) => {
-      // Restore only if no later click on this field is waiting. Otherwise the snapshot would erase
-      // that click; the refetch then comes from the last mutation's onSettled.
-      if (snapshot?.previous && isNewest()) queryClient.setQueryData(key, snapshot.previous);
-    },
-    // Refetching while a later click is queued could bring back this mutation's result over the
-    // later click's optimistic write, so only the newest one refetches decisions.
-    onSettled: () => invalidate(queryClient, isNewest() ? [key, queryKeys.allQueues()] : [queryKeys.allQueues()]),
-  });
-}
-
 const invalidate = (queryClient: QueryClient, keys: readonly (readonly string[])[]) =>
   Promise.all(keys.map((queryKey) => queryClient.invalidateQueries({ queryKey })));
 
+// Completed elsewhere (another tab): refetch the claim so the screen turns read-only.
+const refetchClaimIfCompleted = (queryClient: QueryClient, claimId: string, error: Error) => {
+  if (error instanceof ApiFailure && error.status === 409 && error.code === "claim_completed") {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.claim(claimId) });
+  }
+};
+
+// The server's answer is the truth: it is written into the cache as it arrived, with no refetch of
+// the decisions that could race it. The queue's needs_you counts change, so those are refetched.
+function writeDecisions(queryClient: QueryClient, claimId: string, write: (list: Decision[]) => Decision[]) {
+  queryClient.setQueryData<DecisionsResponse>(queryKeys.decisions(claimId), (old) => ({ decisions: write(old?.decisions ?? []) }));
+  void queryClient.invalidateQueries({ queryKey: queryKeys.allQueues() });
+}
+
 export function useDecide(claimId: string, fieldId: string) {
-  return useOptimisticField(
-    claimId,
-    fieldId,
-    (input: DecisionInput) => sendJson("PUT", decisionPath(claimId, fieldId), input, Decision),
-    // The server sets the real `at`; this one only shows the pill until the refetch.
-    (list, input) => withDecision(list, { ...input, claim_id: claimId, field_id: fieldId, at: new Date().toISOString() }),
-  );
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: DecisionInput) => sendJson("PUT", decisionPath(claimId, fieldId), input, Decision),
+    onSuccess: (decision) => writeDecisions(queryClient, claimId, (list) => withDecision(list, decision)),
+    onError: (error) => refetchClaimIfCompleted(queryClient, claimId, error),
+  });
 }
 
 export function useUndo(claimId: string, fieldId: string) {
-  return useOptimisticField<void, void>(
-    claimId,
-    fieldId,
-    () => sendJson("DELETE", decisionPath(claimId, fieldId), undefined, null),
-    (list) => withoutDecision(list, fieldId),
-  );
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => sendJson("DELETE", decisionPath(claimId, fieldId), undefined, null),
+    onSuccess: () => writeDecisions(queryClient, claimId, (list) => withoutDecision(list, fieldId)),
+    onError: (error) => refetchClaimIfCompleted(queryClient, claimId, error),
+  });
 }
 
-// Not optimistic: completing locks the claim, so the screen waits for the server to agree.
+// Completing locks the claim, so the screen waits for the server to agree (as decisions do).
 // On a 409 (not_ready, claim_completed) the claim is refetched too, so the button shows why.
 export function useComplete(claimId: string) {
   const queryClient = useQueryClient();

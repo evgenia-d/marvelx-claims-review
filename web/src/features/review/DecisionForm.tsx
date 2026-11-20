@@ -1,7 +1,7 @@
 import { useId, type FormEvent, type KeyboardEvent } from "react";
 import type { DecisionInput } from "@shared/contract";
 import { isMoney, parseInput, type FieldView } from "@shared/domain";
-import { Button, IconCheck, TextInput, type ValueBoxSize } from "../../ui";
+import { Busy, Button, IconCheck, TextInput, type ValueBoxSize } from "../../ui";
 import type { FormMode } from "./DecisionButtons";
 
 /** `basedOn` is the agent version the reviewer saw when the form opened, not the one at Save. */
@@ -15,6 +15,8 @@ type Props = {
   onChange: (draft: Draft) => void;
   onSave: (input: DecisionInput) => void;
   onCancel: () => void;
+  /** A save is in flight: Save shows the busy dot, and Save and Cancel are blocked. */
+  saving?: boolean;
 };
 
 const REASON_MAX = 200; // OverrideReason in the contract
@@ -28,7 +30,7 @@ function currencyOf(view: FieldView): string {
 }
 
 /** Correct (starts from the agent's value) or Reject (starts empty, needs a reason). Enter saves, Escape cancels. */
-export function DecisionForm({ view, draft, size, onChange, onSave, onCancel }: Props) {
+export function DecisionForm({ view, draft, size, onChange, onSave, onCancel, saving = false }: Props) {
   const valueHelp = useId();
   const reasonHelp = useId();
   const parsed = parseInput(view.value_type, draft.value, currencyOf(view));
@@ -37,7 +39,7 @@ export function DecisionForm({ view, draft, size, onChange, onSave, onCancel }: 
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (!parsed.ok || needsReason) return;
+    if (!parsed.ok || needsReason || saving) return;
     const based_on = draft.basedOn;
     onSave(
       draft.mode === "correct"
@@ -47,7 +49,7 @@ export function DecisionForm({ view, draft, size, onChange, onSave, onCancel }: 
   }
 
   function onKeyDown(event: KeyboardEvent) {
-    if (event.key === "Escape") onCancel();
+    if (event.key === "Escape" && !saving) onCancel();
   }
 
   const valueProps = {
@@ -92,10 +94,10 @@ export function DecisionForm({ view, draft, size, onChange, onSave, onCancel }: 
         </div>
       )}
       <div className="flex gap-2">
-        <Button type="submit" variant="primary" icon={<IconCheck />} aria-disabled={blocked}>
+        <Button type="submit" variant="primary" icon={saving ? <Busy /> : <IconCheck />} aria-disabled={blocked || saving || undefined}>
           Save
         </Button>
-        <Button variant="secondary" onClick={onCancel}>
+        <Button variant="secondary" aria-disabled={saving || undefined} onClick={onCancel}>
           Cancel
         </Button>
       </div>

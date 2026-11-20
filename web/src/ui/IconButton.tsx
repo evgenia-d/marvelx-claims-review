@@ -21,17 +21,28 @@ export function IconButton({
   edge = false,
   tooltipAlign,
   className,
+  onClick,
   type = "button",
   ...rest
 }: IconButtonProps) {
+  // Same as Button: `aria-disabled` greys it, keeps focus and ignores clicks.
+  const blocked = rest["aria-disabled"] === true || rest["aria-disabled"] === "true";
   return (
     <Tooltip content={label} align={tooltipAlign}>
       <button
         {...rest}
         type={type}
         aria-label={label}
+        onClick={(event) => {
+          if (blocked) {
+            event.preventDefault();
+            return;
+          }
+          onClick?.(event);
+        }}
         className={cx(
-          "inline-flex items-center justify-center rounded-md border text-ink-2 hover:bg-subtle",
+          "inline-flex items-center justify-center rounded-md border",
+          blocked ? "cursor-not-allowed text-ink-3" : "text-ink-2 hover:bg-subtle",
           size === "sm" ? "size-11 lg:size-8" : "size-12 lg:size-9",
           edge ? "border-line" : "border-transparent",
           focusRing,

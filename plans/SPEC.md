@@ -46,7 +46,7 @@ Jobs, in the reviewer's words:
 
   Undo returns a field to `pending`. "Revised after your decision" is a field status, never a claim status: the queue shows it only as a count.
 - **Filter** (status) is kept in the URL.
-- **Decisions are saved through the backend.** If saving fails, the screen goes back to the previous state and says so. If the agent revised the field since the decision was based on it, the backend refuses the save and the reviewer is told.
+- **Decisions are saved through the backend.** If saving fails, the field stays as it was and the screen says so. If the agent revised the field since the decision was based on it, the backend refuses the save and the reviewer is told.
 - **Storage is in memory.** Restarting the replay resets runs and decisions.
 - **Out of scope:** dark mode, sign-in, translations, bulk accept (README section 4 only).
 

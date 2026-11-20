@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 import type { ClaimDetail, DecisionInput, ValueType } from "@shared/contract";
 import { formatValue, inputText, type FieldState, type FieldView } from "@shared/domain";
 import { useDecide, useUndo } from "../../api/decisions";
@@ -34,11 +34,46 @@ function confidenceChange(field: FieldState): { from: number; reason: string | n
   return before ? { from: before.confidence, reason: field.current.reason } : null;
 }
 
-// A 409 agent_revised keeps the draft and asks to decide again; anything else was rolled back.
-const failureOf = (error: Error): SaveFailure =>
-  error instanceof ApiFailure && error.status === 409 && error.code === "agent_revised" ? "refused" : "failed";
+// A 409 agent_revised keeps the draft and asks to decide again. Network errors and 5xx may work on
+// a retry. Any other 4xx (claim completed, field gone) never will: show the server's message.
+const failureOf = (error: Error): SaveFailure => {
+  if (!(error instanceof ApiFailure)) return "failed";
+  if (error.status === 409 && error.code === "agent_revised") return "refused";
+  if (error.status >= 400 && error.status < 500) return { message: error.message };
+  return "failed";
+};
 
 const shownValue = (view: FieldView, v: FieldView["shown"]["value"]) => formatValue(view.value_type, v) ?? "Not found";
+
+// One ValueBox. With a label, a screen reader hears whose value it is; sighted users see the pair by position.
+function ValueWithLabel({
+  label,
+  value,
+  view,
+  tone,
+  size,
+}: {
+  label?: string;
+  value: FieldView["shown"]["value"];
+  view: FieldView;
+  tone: "default" | "tint";
+  size: ValueBoxSize;
+}) {
+  const text = formatValue(view.value_type, value);
+  return (
+    <div role={label ? "group" : undefined} aria-label={label} className="min-w-0 sm:flex-1">
+      {text === null ? (
+        <ValueBox tone="muted" size={size}>
+          <span className="font-mono italic">Not found in documents</span>
+        </ValueBox>
+      ) : (
+        <ValueBox tone={tone} size={size}>
+          {text}
+        </ValueBox>
+      )}
+    </div>
+  );
+}
 
 type Props = {
   claimId: string;
@@ -49,7 +84,7 @@ type Props = {
   completedAt: string | null;
   /** The claim's documents: the phone shows the cited passage under the value. */
   documents: ClaimDetail["documents"];
-  /** Called once a decision is saved, unless a later click on this field came after it. */
+  /** Called once a decision is saved (not after an undo). */
   onDecided?: () => void;
   /** Focus the field name when the card opens: set when the screen moved here after a decision. */
   focusOnMount?: boolean;
@@ -64,7 +99,6 @@ const focusElement = (el: HTMLElement | null) => el?.focus();
  */
 export function FieldCard({ claimId, view, field, group, startedAt, completedAt, documents, onDecided, focusOnMount }: Props) {
   const laptop = useIsLaptop();
-  const value = formatValue(view.value_type, view.shown.value);
   const size = SIZE[view.value_type];
   const confidence = confidenceChange(field);
   // Local until saved: cleared only when the save succeeds, so a refused or failed save keeps the text.
@@ -75,17 +109,19 @@ export function FieldCard({ claimId, view, field, group, startedAt, completedAt,
   const decide = useDecide(claimId, view.field_id);
   const undo = useUndo(claimId, view.field_id);
   const pillId = useId();
-  // Counts this field's clicks (decide, undo, opening a draft). A save moves the screen on only if
-  // it is still the last click: Accept then a quick Undo, or Correct, stays on the field.
-  const lastClick = useRef(0);
+  // While a save is in flight every decision control is blocked, so there is never a second click to order.
+  const saving = decide.isPending || undo.isPending;
+  // Which control shows the busy dot. Only Accept / Use new and Undo have an icon to replace. Accept
+  // and Use new are the only accepts (keepMine returns correct/override), so any other decide is Keep
+  // mine, which has no icon; the draft's Save hides these buttons and reads `saving` itself.
+  const savingFrom = undo.isPending ? "undo" : decide.isPending && decide.variables?.action === "accept" ? "primary" : null;
 
   const save = (input: DecisionInput, fromDraft: boolean) => {
     setFailure(null);
-    const click = ++lastClick.current;
     decide.mutate(input, {
       onSuccess: () => {
         if (fromDraft) setDraft(null);
-        if (click === lastClick.current) onDecided?.();
+        onDecided?.();
       },
       onError: (error) => {
         const kind = failureOf(error);
@@ -112,14 +148,10 @@ export function FieldCard({ claimId, view, field, group, startedAt, completedAt,
   };
   const undoDecision = () => {
     setFailure(null);
-    lastClick.current++;
-    // A failed click queued before this undo may have left a message; the undo is now the last word.
-    undo.mutate(undefined, { onSuccess: () => setFailure(null), onError: (error) => setFailure(failureOf(error)) });
+    undo.mutate(undefined, { onError: (error) => setFailure(failureOf(error)) });
   };
-  // Correct starts from the agent's value as the input reads it; Reject starts empty. Opening a
-  // draft counts as a click: a save still in flight then lands without moving the screen on.
+  // Correct starts from the agent's value as the input reads it; Reject starts empty.
   const open = (mode: FormMode) => {
-    lastClick.current++;
     setReturnFocusTo(null);
     setDraft({
       mode,
@@ -140,6 +172,8 @@ export function FieldCard({ claimId, view, field, group, startedAt, completedAt,
       onUndo={undoDecision}
       onOpen={open}
       acceptedNoteId={pillId}
+      saving={saving}
+      savingFrom={savingFrom}
     />
   );
   const showButtons = completedAt === null && !draft;
@@ -196,14 +230,24 @@ export function FieldCard({ claimId, view, field, group, startedAt, completedAt,
           )}
         </div>
 
-        {value === null ? (
-          <ValueBox tone="muted" size={size}>
-            <span className="font-mono italic">Not found in documents</span>
-          </ValueBox>
+        {view.shown.by === "you" ? (
+          // The agent's value the reviewer replaced, then theirs: side by side for one-line values, stacked for text.
+          <div className={size === "num" ? "flex flex-col gap-2 sm:flex-row sm:items-center" : "flex flex-col gap-2"}>
+            <ValueWithLabel label={view.decidedOn && view.decidedOn.version !== view.agent.version ? "Agent's value then" : "Agent's value"} value={view.decidedOn?.value ?? view.agent.value} view={view} tone="default" size={size} />
+            <span aria-hidden="true" className="self-center text-ink-3">
+              {size === "num" ? (
+                <>
+                  <span className="max-sm:hidden">→</span>
+                  <span className="sm:hidden">↓</span>
+                </>
+              ) : (
+                "↓"
+              )}
+            </span>
+            <ValueWithLabel label="Your value" value={view.shown.value} view={view} tone="tint" size={size} />
+          </div>
         ) : (
-          <ValueBox tone={view.shown.by === "you" ? "tint" : "default"} size={size}>
-            {value}
-          </ValueBox>
+          <ValueWithLabel value={view.shown.value} view={view} tone="default" size={size} />
         )}
 
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -253,6 +297,7 @@ export function FieldCard({ claimId, view, field, group, startedAt, completedAt,
             size={size}
             onChange={setDraft}
             onSave={saveDraft}
+            saving={saving}
             onCancel={() => {
               setReturnFocusTo(draft.mode);
               setDraft(null);

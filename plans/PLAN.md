@@ -31,7 +31,7 @@
 Inputs the spec implies but doesn't spell out, most likely to bite first. Each has a test in the task that owns the code.
 
 1. **Replay restarted while a review screen is open.** Expected: the screen empties and replays from zero; no fields or decisions from the old replay mix in. Test: Slice A, "sends a reset event and closes the stream when the replay restarts"; Slice D2 store test "reset clears the claim's run state".
-2. **Two fast clicks on one field** (Accept, then Undo, before the first save returns). Expected: saves run in order, last one wins, no flicker back. Test: Slice D2, decision mutations share `scope: { id: "decision:<claim>:<field>" }`; pure test "applies optimistic decisions in call order".
+2. **Two fast clicks on one field** (Accept, then Undo, before the first save returns). Expected: saves run in order, last one wins, no flicker back. Test: Slice D2, decision mutations share `scope: { id: "decision:<claim>:<field>" }`; pure test "applies optimistic decisions in call order". **Superseded (owner, 20 Nov, Finish):** decisions now wait for the server and the field's buttons are blocked while a save is in flight, so a second click can't start; test "blocks the decision buttons while a save is in flight".
 3. **The agent revises a field while the reviewer is typing a correction.** Expected: the input keeps its text and focus; the 409 on save keeps the text. Test: Slice D2 component test "keeps the typed value when the save is refused with 409" (needs Testing Library; see Slice 0 deps).
 4. **A malformed or unexpected event** (unknown `type`, a revision for a `field_id` never extracted, a bad JSON line in an extra run). Expected: dropped, nothing crashes, the rest of the run applies. Tests: Slice B "ignores a revision for a field that was never extracted"; Slice D1 "parseRunEvent returns null for an unknown event type".
 5. **A citation that can't be resolved** (unknown `document_id`, or `end` past the document's length). Expected: treated like no usable source ("Source not available"), never a crash or a wrong slice. Test: Slice B "citedText returns null when the offsets fall outside the document".
@@ -144,7 +144,7 @@ Path params `ClaimParams = { claimId: z.string().regex(/^CLM-\d{4}-\d{6}$/) }`, 
 | Server replay | per-claim timeline, clock, `replayId` (new on every process start and restart) | `server/src/replay.ts` |
 | Server store | current decision per field, `completed_at` per claim | `server/src/decisions.ts` |
 | Run state (browser) | `RunState` per claim, from `applyEvent`; never edited by the UI | Zustand, `web/src/api/runStore.ts` |
-| Server data (browser) | queue (polled every 2 s while the queue page is open), claim detail, decisions (optimistic) | TanStack Query, `web/src/api/queries.ts` |
+| Server data (browser) | queue (polled every 2 s while the queue page is open), claim detail, decisions (written on save success; optimistic until 20 Nov) | TanStack Query, `web/src/api/queries.ts` |
 | URL | `/?status=`, `/claims/:claimId?field=<field_id>` | React Router + Zod |
 | Local | the open decision form's draft, open sections, field filter (Needs you / To review / All) | `useState` |
 | Derived | field status, shown value, attention, counts, claim status, can-complete | `shared/domain/`, at render time |
@@ -407,7 +407,7 @@ No unit tests here: the testing rules exclude styling and markup.
 
 **Interfaces:**
 - Pure: `withDecision(list: Decision[], d: Decision): Decision[]`, `withoutDecision(list, fieldId): Decision[]`.
-- `useDecide(claimId, fieldId)` and `useUndo(claimId, fieldId)`: TanStack mutations, `scope: { id: \`decision:${claimId}:${fieldId}\` }` (serial per field), `onMutate` snapshot + optimistic write with `at: new Date().toISOString()`, `onError` restore, `onSettled` invalidate decisions and queue. `useComplete(claimId)`.
+- `useDecide(claimId, fieldId)` and `useUndo(claimId, fieldId)`: TanStack mutations, `scope: { id: \`decision:${claimId}:${fieldId}\` }` (serial per field), `onMutate` snapshot + optimistic write with `at: new Date().toISOString()`, `onError` restore, `onSettled` invalidate decisions and queue. `useComplete(claimId)`. **Superseded (owner, 20 Nov, Finish):** no optimistic write; `onSuccess` writes the server's decision into the cache and invalidates the queue, and the screen moves on in the same render.
 - `FieldCard` owns `draft: { mode: "correct" | "override"; value: string; reason: string } | null` in `useState`; cleared only on success, so a 409 or failed save leaves the text in place. Correct opens with the agent's value formatted for input (money: the amount string), override opens empty. Input parsing back to `FieldValue` by `value_type` is `parseInput(t, raw)` in `shared/domain/values.ts` (money keeps the typed string after validating `^\d+(\.\d{1,2})?$`; add its tests to `values.test.ts`).
 
 - [ ] **Step 1: Write the failing tests:** "applies optimistic decisions in call order" (accept then undo → no decision); "withDecision replaces the field's previous decision"; `parseInput`: money "4415.3" → `{ amount: "4415.3", currency }` unchanged string, "4,415.30" rejected, boolean "yes"/"no", number "14.5". With Testing Library: "rolls back and says Couldn't save when the save fails"; "keeps the typed value when the save is refused with 409".

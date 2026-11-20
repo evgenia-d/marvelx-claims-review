@@ -39,8 +39,11 @@ test("accepting a field on 4809 survives a reload", async ({ page }) => {
   await expect(page).toHaveURL(/\/claims\/CLM-2026-004809/);
   const field = page.getByRole("button", { name: /Repair cost/i }).first();
   await field.click();
+  const heading = page.locator("#open-field-name");
+  const name = await heading.textContent();
   await page.getByRole("button", { name: "Accept", exact: true }).click();
-  // The screen moves on to the next undecided field after a save, so open the field again.
+  // The screen waits for the save, then moves on to the next undecided field: wait for that, then open the field again.
+  await expect(heading).not.toHaveText(name ?? "");
   await field.click();
   await expect(page.getByText(/You · accepted/)).toBeVisible();
   await page.reload();

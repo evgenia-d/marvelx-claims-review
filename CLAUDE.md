@@ -2,7 +2,7 @@
 
 A claims reviewer watches an AI agent work through a claim live and accepts, corrects or overrides each extracted field. Take-home, about 4 hours, defended line by line in the next round.
 
-Sources, in order of authority: `plans/BRIEF.md`, `fixtures/README.md` + fixture data, `plans/SPEC.md`, `plans/BRIEFING.md`. Product rules and acceptance criteria live in `plans/SPEC.md`; the build plan in `plans/PLAN.md` (once written).
+Sources, in order of authority: `plans/BRIEF.md`, `fixtures/README.md` + fixture data, `plans/SPEC.md`, `plans/BRIEFING.md`. Product rules and acceptance criteria live in `plans/SPEC.md`; the build plan in `plans/PLAN.md`.
 
 ## Stack
 
@@ -52,7 +52,7 @@ Area rules load automatically: `.claude/rules/frontend.md` (`web/`), `.claude/ru
 
 ## Slices and commits
 
-- A slice is one build task in `plans/PLAN.md` (until it exists: tracks A–G in `plans/BRIEFING.md`). Everything goes on `main`; no branch or PR per slice.
+- A slice is one build task in `plans/PLAN.md`. Everything goes on `main`; no branch or PR per slice.
 - A slice is done when: typecheck, lint and tests pass; the `slice-reviewer` agent has run and its findings are fixed or consciously skipped; I have reviewed it. Then one commit, only when I say so.
 - After a slice's commit, give me the exact prompt to start the next slice in a fresh session, in a code block: slice name, what to read first, the `PLAN.md` Execution line's models, anything decided this slice that the plan doesn't say, and the "done when" and stop-for-review steps.
 - The `final-reviewer` agent runs once, at the feature freeze.
