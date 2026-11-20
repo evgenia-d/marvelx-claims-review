@@ -10,14 +10,23 @@ export type Connection = "connecting" | "live" | "reconnecting" | "closed";
 type RunStore = {
   runs: Record<string, RunState>;
   connection: Record<string, Connection>;
+  /**
+   * Set when the stream says its connect backlog is done: the number of fields there were then.
+   * One map answers both "is the screen caught up" (present) and "did this row arrive live"
+   * (its arrival index is at or past the count).
+   */
+  synced: Record<string, number>;
   apply: (claimId: string, event: RunEvent) => void;
+  /** Clears the claim's run state and synced, before a new EventSource starts it over. */
   reset: (claimId: string) => void;
+  markSynced: (claimId: string) => void;
   setConnection: (claimId: string, connection: Connection) => void;
 };
 
 export const useRunStore = create<RunStore>()((set) => ({
   runs: {},
   connection: {},
+  synced: {},
   // Returning the unchanged store state makes zustand skip the update, so a duplicate seq
   // (applyEvent hands back the same object) notifies no subscriber.
   apply: (claimId, event) =>
@@ -28,11 +37,19 @@ export const useRunStore = create<RunStore>()((set) => ({
     }),
   reset: (claimId) =>
     set((s) => {
-      if (!(claimId in s.runs)) return s;
+      if (!(claimId in s.runs) && !(claimId in s.synced)) return s;
       const runs = { ...s.runs };
+      const synced = { ...s.synced };
       delete runs[claimId];
-      return { runs };
+      delete synced[claimId];
+      return { runs, synced };
     }),
+  // A reconnect of the same EventSource gets another `synced`: keep the first, so the screen never
+  // goes back to loading mid-review and rows that already faded in aren't re-counted.
+  markSynced: (claimId) =>
+    set((s) =>
+      claimId in s.synced ? s : { synced: { ...s.synced, [claimId]: s.runs[claimId]?.field_order.length ?? 0 } },
+    ),
   setConnection: (claimId, connection) =>
     set((s) => (s.connection[claimId] === connection ? s : { connection: { ...s.connection, [claimId]: connection } })),
 }));
@@ -64,5 +81,10 @@ export const useRunMeta = (claimId: string): RunMeta =>
 export const useFieldOrder = (claimId: string): string[] => useRunStore((s) => s.runs[claimId]?.field_order ?? NO_FIELDS);
 
 export const useSummary = (claimId: string): string => useRunStore((s) => s.runs[claimId]?.summary ?? "");
+
+export const useSynced = (claimId: string): boolean => useRunStore((s) => claimId in s.synced);
+
+/** How many fields were there when the stream caught up; rows past it arrived live. */
+export const useFieldsAtSync = (claimId: string): number => useRunStore((s) => s.synced[claimId] ?? 0);
 
 export const useConnection = (claimId: string): Connection => useRunStore((s) => s.connection[claimId] ?? "connecting");

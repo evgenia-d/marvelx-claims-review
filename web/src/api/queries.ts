@@ -6,6 +6,7 @@ import { getJson } from "./http";
 
 export const queryKeys = {
   queue: (status?: ClaimStatus) => ["queue", status ?? "all"] as const,
+  allQueues: () => ["queue"] as const, // prefix of every queue key: invalidates all filters at once
   claim: (claimId: string) => ["claim", claimId] as const,
   decisions: (claimId: string) => ["decisions", claimId] as const,
 };

@@ -30,6 +30,9 @@ const parsedIds = (text: string) => [...text.matchAll(/^id: (.+)$/gm)].map((m) =
 const ids = (text: string) => parsedIds(text).map((id) => id.seq);
 const rawIds = (text: string) => [...text.matchAll(/^id: (.+)$/gm)].map((m) => m[1] ?? "");
 
+// The `synced` messages, whole: no `id:` line, so the browser's Last-Event-ID stays the last run event's.
+const syncedBlocks = (text: string) => text.split("\n\n").filter((block) => block.includes("event: synced"));
+
 // Connects, reads the first event's id (the current replay's), and disconnects.
 async function currentId(app: ReturnType<typeof makeApp>["app"], path = url) {
   const reader = (await app.request(path)).body!.getReader();
@@ -152,6 +155,58 @@ describe("GET /api/claims/:claimId/events", () => {
     const { text } = await readUntil(reader, (t) => ids(t).length >= 24);
     expect(ids(text)).toEqual(Array.from({ length: 24 }, (_, i) => i + 1));
     await reader.cancel();
+  });
+
+  it("sends synced after the backlog", async () => {
+    const { app, tick } = makeApp();
+    tick(10000);
+    const reader = (await app.request(url)).body!.getReader();
+    const { text } = await readUntil(reader, (t) => t.includes("event: synced"));
+    const before = text.slice(0, text.indexOf("event: synced"));
+    expect(ids(before)).toEqual(dueSeqs(10000));
+    expect(syncedBlocks(text)).toEqual(["event: synced\ndata: {}"]);
+    await reader.cancel();
+  });
+
+  it("sends synced on an empty backlog", async () => {
+    const { app } = makeApp();
+    // 4830 starts 20 s into the replay: nothing is due yet.
+    const reader = (await app.request("/api/claims/CLM-2026-004830/events")).body!.getReader();
+    const { text } = await readUntil(reader, (t) => t.includes("event: synced"));
+    expect(ids(text)).toEqual([]);
+    expect(syncedBlocks(text)).toHaveLength(1);
+    await reader.cancel();
+  });
+
+  it("sends synced after a resume from a current-replay Last-Event-ID", async () => {
+    const { app, tick } = makeApp();
+    const replayId = LastEventId.parse(await currentId(app)).replay;
+    tick(10000);
+    const reader = (await app.request(url, { headers: { "Last-Event-ID": `${replayId}.5` } })).body!.getReader();
+    const { text } = await readUntil(reader, (t) => t.includes("event: synced"));
+    const before = text.slice(0, text.indexOf("event: synced"));
+    expect(ids(before)).toEqual(dueSeqs(10000).filter((s) => s > 5));
+    expect(syncedBlocks(text)).toHaveLength(1);
+    await reader.cancel();
+  });
+
+  it("does not send synced again on later polls", async () => {
+    const { app, tick } = makeApp();
+    const reader = (await app.request(url)).body!.getReader();
+    const start = await readUntil(reader, (t) => t.includes("event: synced"));
+    tick(10000);
+    const { text } = await readUntil(reader, (t) => ids(t).length >= dueSeqs(10000).length, start.text);
+    expect(ids(text)).toEqual(dueSeqs(10000));
+    expect(syncedBlocks(text)).toHaveLength(1);
+    await reader.cancel();
+  });
+
+  it("sends no synced with a reset on connect", async () => {
+    const { app } = makeApp();
+    const reader = (await app.request(url, { headers: { "Last-Event-ID": "5" } })).body!.getReader();
+    const { text } = await readUntil(reader, () => false);
+    expect(text).toContain("event: reset");
+    expect(text).not.toContain("event: synced");
   });
 
   it("sends a heartbeat comment every 15 s", async () => {

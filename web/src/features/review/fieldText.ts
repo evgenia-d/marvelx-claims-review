@@ -1,4 +1,5 @@
 // Words for field states, shared by the row, the card and the agent line, so they always match.
+import type { Decision } from "@shared/contract";
 import { confidenceLevel, type Attention, type FieldView } from "@shared/domain";
 
 const PERCENT = new Intl.NumberFormat("en-IE", { style: "percent" });
@@ -58,3 +59,10 @@ export function statusText(view: FieldView): string {
     }
   }
 }
+
+// Past tense of a decision. The UI says "Reject" for the override action, so it reads "replaced".
+export const DECISION_VERB = {
+  accept: "accepted",
+  correct: "corrected",
+  override: "replaced",
+} as const satisfies Record<Decision["action"], string>;

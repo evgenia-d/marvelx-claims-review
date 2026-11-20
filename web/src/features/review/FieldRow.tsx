@@ -5,14 +5,16 @@ import { attentionText, infoTag, statusText } from "./fieldText";
 
 type Props = {
   view: FieldView;
+  /** Fade in on mount: only for a field that arrived after the stream caught up. */
+  arrive: boolean;
   selected: boolean;
-  /** Filtered out: kept mounted and hidden, so switching the filter doesn't replay the fade-in. */
+  /** Filtered out: kept mounted and hidden (ListRow plays its fade-in only once). */
   hidden: boolean;
   onSelect: (fieldId: string) => void;
 };
 
 /** One field in the list. Its view comes from the screen's claimViews, like every other field's. */
-export function FieldRow({ view, selected, hidden, onSelect }: Props) {
+export function FieldRow({ view, arrive, selected, hidden, onSelect }: Props) {
   const value = formatValue(view.value_type, view.shown.value);
   const glyph = view.needsYou ? "attn" : view.status === "pending" ? "ring" : "done";
   const [first, ...more] = view.needsYou ? view.attention : [];
@@ -22,7 +24,7 @@ export function FieldRow({ view, selected, hidden, onSelect }: Props) {
   return (
     <li hidden={hidden}>
       <ListRow
-        arrive
+        arrive={arrive}
         glyph={<StatusGlyph kind={glyph} />}
         label={view.label}
         value={value ?? "Not found"}

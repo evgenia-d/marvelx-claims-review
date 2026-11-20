@@ -18,12 +18,25 @@ export function Skeleton({ lines = 3, label = "Loading…" }: SkeletonProps) {
     <div role="status" className="flex flex-col gap-2">
       <span className="sr-only">{label}</span>
       {bars.slice(0, lines).map((bar) => (
-        <div
-          key={bar.id}
-          aria-hidden="true"
-          className={cx("h-4 rounded-sm bg-subtle animate-live motion-reduce:animate-none", bar.width)}
-        />
+        <SkeletonBar key={bar.id} className={cx("h-4", bar.width)} />
       ))}
     </div>
   );
+}
+
+const radius = { bar: "rounded-sm", pill: "rounded-full", box: "rounded-md" } as const;
+
+export type SkeletonBarProps = {
+  /** Height and width (and layout, e.g. shrink-0), as token classes. */
+  className: string;
+  /** bar: a line of text; pill: a chip; box: a button or input. */
+  shape?: keyof typeof radius;
+};
+
+/**
+ * One placeholder block, hidden from screen readers. For a skeleton shaped like the content it
+ * stands for; pair it with one `Skeleton` (or another role="status") that says what is loading.
+ */
+export function SkeletonBar({ className, shape = "bar" }: SkeletonBarProps) {
+  return <div aria-hidden="true" className={cx("bg-subtle animate-live motion-reduce:animate-none", radius[shape], className)} />;
 }

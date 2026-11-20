@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { cx, focusRing } from "./cx";
 
 export type ListRowProps = {
@@ -10,7 +10,7 @@ export type ListRowProps = {
   tone?: "you";
   trailing?: ReactNode;
   selected?: boolean;
-  /** Fade the row in (a row that just appeared). */
+  /** Fade the row in once, on mount (a row that just appeared). */
   arrive?: boolean;
   onSelect: () => void;
   "aria-label": string;
@@ -28,17 +28,23 @@ export function ListRow({
   onSelect,
   "aria-label": ariaLabel,
 }: ListRowProps) {
+  // A CSS animation restarts when a hidden (display: none) row is shown again, so once it has
+  // played the class comes off: showing the row later doesn't fade it in a second time.
+  const [arrived, setArrived] = useState(false);
   return (
     <button
       type="button"
       aria-label={ariaLabel}
       aria-current={selected ? "true" : undefined}
       onClick={onSelect}
+      onAnimationEnd={(e) => {
+        if (e.target === e.currentTarget) setArrived(true);
+      }}
       className={cx(
         "flex h-13 w-full items-center gap-2 rounded-md px-2 text-left hover:bg-subtle lg:h-10",
         focusRing,
         selected && "bg-surface shadow-selected",
-        arrive && "animate-arrive motion-reduce:animate-none",
+        arrive && !arrived && "animate-arrive motion-reduce:animate-none",
       )}
     >
       <span className="flex shrink-0 items-center">{glyph}</span>

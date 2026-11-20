@@ -22,7 +22,7 @@ export { Message, type MessageProps } from "./Message";
 export { ProgressBar, type ProgressBarProps } from "./ProgressBar";
 export { SegmentedControl, type SegmentedControlProps, type SegmentedItem } from "./SegmentedControl";
 export { Select, type SelectProps } from "./Select";
-export { Skeleton, type SkeletonProps } from "./Skeleton";
+export { Skeleton, SkeletonBar, type SkeletonBarProps, type SkeletonProps } from "./Skeleton";
 export { StatusGlyph, type StatusGlyphProps } from "./StatusGlyph";
 export {
   Table,

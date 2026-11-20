@@ -4,10 +4,18 @@ import { ClaimParams, type ClaimDetail } from "@shared/contract";
 import { groupFields } from "@shared/domain";
 import { ApiFailure } from "../../api/http";
 import { useClaim } from "../../api/queries";
-import { useFieldOrder, useRunField, useRunMeta, useRunStore, useSummary } from "../../api/runStore";
+import {
+  useFieldOrder,
+  useFieldsAtSync,
+  useRunField,
+  useRunMeta,
+  useRunStore,
+  useSummary,
+  useSynced,
+} from "../../api/runStore";
 import type { FieldView, RunState } from "@shared/domain";
 import { useRunSubscription } from "../../api/subscribe";
-import { Button, Message, Skeleton } from "../../ui";
+import { Button, Message } from "../../ui";
 import { AgentStepLine } from "./AgentStepLine";
 import { ClaimHeader } from "./ClaimHeader";
 import { DocumentPanel } from "./DocumentPanel";
@@ -15,7 +23,9 @@ import { FieldCard } from "./FieldCard";
 import { FieldFilter, type FilterId } from "./FieldFilter";
 import { FieldRow } from "./FieldRow";
 import { FieldSection } from "./FieldSection";
+import { nextFieldId } from "./nextField";
 import { ReviewLayout } from "./ReviewLayout";
+import { ReviewSkeleton } from "./ReviewSkeleton";
 import { SummaryView } from "./SummaryView";
 import { useFieldViews } from "./useFieldViews";
 
@@ -46,13 +56,14 @@ function ClaimNotFound({ claimId }: { claimId: string }) {
 
 function ReviewClaim({ claimId }: { claimId: string }) {
   const claim = useClaim(claimId);
-  if (claim.isPending) {
-    return (
-      <main className="mx-auto w-full max-w-xl p-8">
-        <Skeleton label="Loading claim" />
-      </main>
-    );
-  }
+  // The stream starts with the claim request, not after it. Until its backlog is in, the run store
+  // is partial (or empty, which reads as "not started"), so the screen waits for both and then
+  // shows the run as it is now, in one step.
+  useRunSubscription(claimId);
+  const synced = useSynced(claimId);
+  // One skeleton from route open to synced: the same element in the same place, so it fills in
+  // (claim id and claimant first) instead of being swapped for another loading layout.
+  if (claim.isPending) return <ReviewSkeleton detail={undefined} />;
   if (claim.isError) {
     if (claim.error instanceof ApiFailure && claim.error.status === 404) return <ClaimNotFound claimId={claimId} />;
     return (
@@ -70,16 +81,19 @@ function ReviewClaim({ claimId }: { claimId: string }) {
       </main>
     );
   }
-  return <ReviewScreen detail={claim.data} />;
+  if (!synced) return <ReviewSkeleton detail={claim.data} />;
+  return <ReviewContent detail={claim.data} />;
 }
 
-function ReviewScreen({ detail }: { detail: ClaimDetail }) {
+function ReviewContent({ detail }: { detail: ClaimDetail }) {
   const claimId = detail.claim.claim_id;
-  useRunSubscription(claimId);
   const [filter, setFilter] = useState<FilterId>("all");
+  // The field the screen just moved to after a decision: its card takes focus when it opens.
+  const [advancedTo, setAdvancedTo] = useState<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const meta = useRunMeta(claimId);
   const fieldOrder = useFieldOrder(claimId);
+  const fieldsAtSync = useFieldsAtSync(claimId);
   const views = useFieldViews(claimId);
 
   // Config order, then each group's field order. Rows never re-sort; a row fills its slot on arrival.
@@ -89,6 +103,9 @@ function ReviewScreen({ detail }: { detail: ClaimDetail }) {
   const defaultField = ordered.find((id) => byId.get(id)?.needsYou) ?? ordered[0];
   const fieldParam = searchParams.get("field");
   const openId = fieldParam ?? defaultField;
+
+  // Rows that were already there when the stream caught up don't fade in; only live arrivals do.
+  const arrivedLive = new Set(fieldOrder.slice(fieldsAtSync));
 
   // Pin the default into the URL once, so it doesn't move as more fields arrive. Once ?field= is
   // set (by this or by the reviewer) it is never changed for them.
@@ -104,7 +121,7 @@ function ReviewScreen({ detail }: { detail: ClaimDetail }) {
     );
   }, [fieldParam, defaultField, setSearchParams]);
 
-  const select = (fieldId: string) =>
+  const openField = (fieldId: string) =>
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev);
@@ -113,6 +130,12 @@ function ReviewScreen({ detail }: { detail: ClaimDetail }) {
       },
       { replace: true },
     );
+
+  // A row click: the reviewer chose the field, so nothing takes focus from the row.
+  const select = (fieldId: string) => {
+    setAdvancedTo(null);
+    openField(fieldId);
+  };
 
   const undecided = views.filter((v) => v.status === "pending" || v.status === "revised_after_decision");
   const counts = { needs_you: views.filter((v) => v.needsYou).length, to_review: undecided.length, all: views.length };
@@ -128,6 +151,15 @@ function ReviewScreen({ detail }: { detail: ClaimDetail }) {
   const readingGroup = meta.status === "running" ? groups.find((g) => latestField && g.field_ids.includes(latestField))?.name : undefined;
   const anyShown = ordered.some(shows);
   const openView = openId === undefined ? undefined : byId.get(openId);
+  // After a decision is saved: the next field still to decide that the filter shows, below the
+  // current one, then from the top. With none left, the screen stays on the decided field.
+  const advanceFrom = (fieldId: string) => {
+    const left = new Set(undecided.map((v) => v.field_id));
+    const next = nextFieldId(ordered, fieldId, (id) => left.has(id) && shows(id));
+    if (next === null) return;
+    setAdvancedTo(next);
+    openField(next);
+  };
   const openGroup = groups.find((g) => openId !== undefined && g.field_ids.includes(openId))?.name ?? null;
 
   return (
@@ -137,7 +169,7 @@ function ReviewScreen({ detail }: { detail: ClaimDetail }) {
       list={
         <div className="flex flex-col gap-3 p-4">
           <FieldFilter value={filter} onChange={setFilter} counts={counts} />
-          {/* Filtered-out rows stay mounted and hidden, so a filter switch doesn't replay their fade-in. */}
+          {/* Filtered-out rows stay mounted and hidden; ListRow drops its fade-in once played, so showing a row again doesn't replay it. */}
           {groups.map((group) => (
             <FieldSection
               key={group.name}
@@ -148,7 +180,14 @@ function ReviewScreen({ detail }: { detail: ClaimDetail }) {
               {group.field_ids.map((id) => {
                 const view = byId.get(id);
                 return view ? (
-                  <FieldRow key={id} view={view} selected={id === openId} hidden={!shows(id)} onSelect={select} />
+                  <FieldRow
+                    key={id}
+                    view={view}
+                    arrive={arrivedLive.has(id)}
+                    selected={id === openId}
+                    hidden={!shows(id)}
+                    onSelect={select}
+                  />
                 ) : null;
               })}
             </FieldSection>
@@ -163,7 +202,17 @@ function ReviewScreen({ detail }: { detail: ClaimDetail }) {
       summary={<LiveSummary claimId={claimId} />}
       field={
         openView ? (
-          <OpenField claimId={claimId} view={openView} group={openGroup} />
+          // Keyed by field: a draft or save message never carries over to another field, while agent
+          // updates to this field re-render the same card and keep what the reviewer is typing.
+          <OpenField
+            key={openView.field_id}
+            claimId={claimId}
+            view={openView}
+            group={openGroup}
+            completedAt={detail.claim.completed_at}
+            onDecided={() => advanceFrom(openView.field_id)}
+            focusOnMount={advancedTo === openView.field_id}
+          />
         ) : (
           <NoOpenField fieldId={openId} runStatus={meta.status} />
         )
@@ -180,13 +229,31 @@ function LiveSummary({ claimId }: { claimId: string }) {
   return <SummaryView summary={summary} status={status} />;
 }
 
-type OpenFieldProps = { claimId: string; view: FieldView; group: string | null };
+type OpenFieldProps = {
+  claimId: string;
+  view: FieldView;
+  group: string | null;
+  completedAt: string | null;
+  onDecided: () => void;
+  focusOnMount: boolean;
+};
 
-function OpenField({ claimId, view, group }: OpenFieldProps) {
+function OpenField({ claimId, view, group, completedAt, onDecided, focusOnMount }: OpenFieldProps) {
   // The card's confidence-change line and agent line read the field's history.
   const field = useRunField(claimId, view.field_id);
   const startedAt = useRunStore((s) => s.runs[claimId]?.started_at ?? null);
-  return field ? <FieldCard view={view} field={field} group={group} startedAt={startedAt} /> : null;
+  return field ? (
+    <FieldCard
+      claimId={claimId}
+      view={view}
+      field={field}
+      group={group}
+      startedAt={startedAt}
+      completedAt={completedAt}
+      onDecided={onDecided}
+      focusOnMount={focusOnMount}
+    />
+  ) : null;
 }
 
 function NoOpenField({ fieldId, runStatus }: { fieldId: string | undefined; runStatus: RunState["status"] }) {

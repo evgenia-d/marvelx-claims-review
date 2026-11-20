@@ -9,6 +9,7 @@ playwright-report/
 
 # Local tooling
 .superpowers/
+.claude/worktrees/
 .claude/settings.local.json
 __pycache__/
 *.log

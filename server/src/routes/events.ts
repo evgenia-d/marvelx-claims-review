@@ -1,6 +1,6 @@
-// Per-claim SSE. On connect: every due event (after Last-Event-ID when it is from this replay);
-// then, every 200 ms, the newly due ones. Fixture duplicates are sent as the file has them
-// (the reducer drops them by seq).
+// Per-claim SSE. On connect: every due event (after Last-Event-ID when it is from this replay),
+// then one `event: synced` to say the backlog is done; then, every 200 ms, the newly due ones.
+// Fixture duplicates are sent as the file has them (the reducer drops them by seq).
 // A replay restart ends the stream with `event: reset`, so the browser starts the claim over.
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
@@ -49,6 +49,9 @@ export const eventRoutes = (service: ClaimsService, replay: Replay) =>
       const first = replay.due(claimId);
       let sent = first.length;
       for (const event of first.filter((e) => e.seq > after)) await send(event);
+      // The backlog is done, even when it was empty: the browser can show the run as it is now
+      // instead of each catch-up step. No `id:`, so it never moves the browser's Last-Event-ID.
+      await stream.writeSSE({ event: "synced", data: "{}" });
 
       for (let polls = 1; open; polls++) {
         await stream.sleep(POLL_MS);
