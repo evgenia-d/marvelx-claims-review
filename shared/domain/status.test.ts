@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { Decision, QueueItem } from "@shared/contract";
 import { fieldView, type FieldView } from "./fieldView";
-import { applyEvents, initialRunState } from "./run";
-import { canComplete, claimStatus, queueCounts } from "./status";
+import { applyEvents, initialRunState, type RunState } from "./run";
+import { canComplete, claimStatus, failedStep, queueCounts } from "./status";
 import { TEST_CLAIM, extracted, m, revised } from "./test-events";
 
 const DONE = "2026-09-18T11:00:00+02:00";
@@ -95,4 +95,22 @@ describe("queueCounts", () => {
     expect(queueCounts(items)).toEqual({
       status: { queued: 0, running: 1, needs_review: 2, failed: 1, reviewed: 0 },
     }));
+});
+
+describe("failedStep", () => {
+  const run = (status: RunState["status"], stepId: string | null): Pick<RunState, "status" | "steps" | "error"> => ({
+    status,
+    steps: [{ step_id: "policy", label: "Look up policy", state: "failed", note: null }],
+    error: stepId === null ? null : { step_id: stepId, code: "timeout", message: "x", retryable: false },
+  });
+  it("is the step the failed run stopped at", () => {
+    expect(failedStep(run("failed", "policy"))).toEqual({ step_id: "policy", label: "Look up policy" });
+  });
+  it("is null while the run is not failed", () => {
+    expect(failedStep(run("running", "policy"))).toBeNull();
+    expect(failedStep(run("failed", null))).toBeNull();
+  });
+  it("has no label when the error's step is not among the steps", () => {
+    expect(failedStep(run("failed", "ghost"))).toEqual({ step_id: "ghost", label: undefined });
+  });
 });

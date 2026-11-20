@@ -105,3 +105,12 @@ export function IconArrow(props: IconProps) {
     </Svg>
   );
 }
+
+export function IconRetry(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M13 8a5 5 0 1 1-1.6-3.7" />
+      <path d="M13 2.5v3h-3" />
+    </Svg>
+  );
+}

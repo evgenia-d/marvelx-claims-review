@@ -37,3 +37,13 @@ export function queueCounts(items: QueueItem[]): QueueResponse["counts"] {
   for (const item of items) status[item.status] += 1;
   return { status };
 }
+
+export type FailedStep = { step_id: string; label: string | undefined };
+
+// The step a failed run stopped at. The label is missing when the run failed before that step was
+// announced; callers then say "The run failed". Null for any run that has not failed.
+export function failedStep(run: Pick<RunState, "status" | "steps" | "error">): FailedStep | null {
+  if (run.status !== "failed" || !run.error) return null;
+  const { step_id } = run.error;
+  return { step_id, label: run.steps.find((s) => s.step_id === step_id)?.label };
+}

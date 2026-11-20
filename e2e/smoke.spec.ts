@@ -57,6 +57,27 @@ test("fields of 4817 arrive while the run is live", async ({ page }) => {
 test("unknown claim shows Claim not found", async ({ page }) => {
   await page.goto("/claims/CLM-2026-000000");
   await expect(page.getByRole("heading", { name: "Claim not found" })).toBeVisible();
-  await page.getByRole("button", { name: "Back to queue" }).click();
+  // The header bar has a back icon of the same name; the message's button is in <main>.
+  await page.getByRole("main").getByRole("button", { name: "Back to queue" }).click();
   await expect(page).toHaveURL("/");
+});
+
+test("an empty filter result shows No claims match and a way back", async ({ page }) => {
+  // Nothing is reviewed right after a restart.
+  await page.goto("/?status=reviewed");
+  await expect(page.getByRole("heading", { name: "No claims match" })).toBeVisible();
+  await page.getByRole("button", { name: "Clear filter" }).click();
+  await expect(page).toHaveURL("/");
+  await expect(page.getByRole("link", { name: /^CLM-2026-/ })).toHaveCount(4);
+});
+
+test("the queue says when the server can't be reached", async ({ page }) => {
+  await page.route("**/api/queue**", (route) => route.fulfill({ status: 502, body: "" }));
+  await page.goto("/");
+  // Two query retries come first.
+  await expect(page.getByRole("heading", { name: "Can't reach the server" })).toBeVisible({ timeout: 8_000 });
+  await expect(page.getByText("Live")).toHaveCount(0);
+  await page.unroute("**/api/queue**");
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect(page.getByRole("link", { name: /^CLM-2026-/ })).toHaveCount(4);
 });

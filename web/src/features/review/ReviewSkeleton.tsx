@@ -1,6 +1,8 @@
 import type { ClaimDetail } from "@shared/contract";
+import { useConnection } from "../../api/runStore";
 import { SkeletonBar } from "../../ui";
 import { ClaimHeaderFrame } from "./ClaimHeader";
+import { Reconnecting } from "./Reconnecting";
 import { ReviewLayout } from "./ReviewLayout";
 
 // Two groups of four rows: enough to fill the list pane's first screen like real fields do.
@@ -18,6 +20,7 @@ const DOC_LINES = [
 ];
 
 type Props = {
+  claimId: string;
   /** The claim detail once it's in: the header then shows the real claim id and claimant. */
   detail: ClaimDetail | undefined;
 };
@@ -28,13 +31,20 @@ type Props = {
  * loading -> content changes only the insides. One "Loading claim" for screen readers; every bar is
  * hidden from them.
  */
-export function ReviewSkeleton({ detail }: Props) {
+export function ReviewSkeleton({ claimId, detail }: Props) {
+  // A stream that can't connect at open must not look like plain loading.
+  const reconnecting = useConnection(claimId) === "reconnecting";
   return (
     <ReviewLayout
       header={
         <ClaimHeaderFrame
           claim={detail?.claim}
-          status={<SkeletonBar shape="pill" className="h-5.5 w-24" />}
+          status={
+            <>
+              <SkeletonBar shape="pill" className="h-5.5 w-24" />
+              {reconnecting && <Reconnecting />}
+            </>
+          }
           end={
             <>
               <div className="w-60 shrink-0">

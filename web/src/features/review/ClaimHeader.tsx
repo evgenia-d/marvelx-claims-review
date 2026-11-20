@@ -1,19 +1,20 @@
 import { useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import type { ClaimDetail, QueueItem } from "@shared/contract";
-import { canComplete, claimStatus, type FieldView } from "@shared/domain";
+import { canComplete, claimStatus, type FailedStep, type FieldView } from "@shared/domain";
 import { useConnection, useRunMeta } from "../../api/runStore";
-import { Alert, Busy, IconBack, IconButton, IconTriangle, ProgressBar, SkeletonBar } from "../../ui";
+import { Alert, IconBack, IconButton, IconTriangle, ProgressBar, SkeletonBar } from "../../ui";
 import { queuePath } from "../queue/search";
 import { CompleteReview } from "./CompleteReview";
+import { Reconnecting } from "./Reconnecting";
 import { RunStatusChip } from "./RunStatusChip";
 
-type Props = { detail: ClaimDetail; views: FieldView[] };
+type Props = { detail: ClaimDetail; views: FieldView[]; failed: FailedStep | null };
 
 const DECIDED: FieldView["status"][] = ["accepted", "corrected", "overridden"];
 
 /** Claim id, claimant, run status, current step, how many fields are decided, and Complete review. */
-export function ClaimHeader({ detail, views }: Props) {
+export function ClaimHeader({ detail, views, failed }: Props) {
   const { claim } = detail;
   const meta = useRunMeta(claim.claim_id);
   const connection = useConnection(claim.claim_id);
@@ -29,15 +30,16 @@ export function ClaimHeader({ detail, views }: Props) {
       status={
         <>
           <RunStatusChip status={status} />
-          {connection === "reconnecting" && (
-            <span className="flex items-center gap-1.5 text-sm text-ink-3">
-              <Busy />
-              Reconnecting…
-            </span>
-          )}
+          {connection === "reconnecting" && <Reconnecting />}
         </>
       }
-      step={current && <p className="min-w-0 truncate text-base text-ink-3">{current.label}</p>}
+      step={
+        current ? (
+          <p className="min-w-0 truncate text-base text-ink-3">{current.label}</p>
+        ) : (
+          failed?.label && <p className="min-w-0 truncate text-base text-ink-3">Stopped at {failed.label}</p>
+        )
+      }
       end={
         <>
           {views.length > 0 && (

@@ -19,6 +19,9 @@ export class ApiFailure extends Error {
 
 type Method = "PUT" | "POST" | "DELETE";
 
+const GATEWAY_STATUSES = new Set([502, 503, 504]);
+const unreachable = () => new ApiFailure(0, "unreachable", "Can't reach the server. Check your connection and try again.");
+
 async function request(path: string, init: RequestInit): Promise<Response> {
   let res: Response;
   try {
@@ -26,11 +29,13 @@ async function request(path: string, init: RequestInit): Promise<Response> {
   } catch (error) {
     // A cancelled request (TanStack Query aborts stale ones) is not a failure to show.
     if (init.signal?.aborted) throw error;
-    throw new ApiFailure(0, "unreachable", "Can't reach the server. Check your connection and try again.");
+    throw unreachable();
   }
   if (!res.ok) {
     const body = ApiError.safeParse(await res.json().catch(() => null));
     if (body.success) throw new ApiFailure(res.status, body.data.error.code, body.data.error.message);
+    // A proxy or gateway answered (the dev proxy does this while the API is down), not our server.
+    if (GATEWAY_STATUSES.has(res.status)) throw unreachable();
     throw new ApiFailure(res.status, "unexpected_error", `The server answered with an error (${res.status}).`);
   }
   return res;

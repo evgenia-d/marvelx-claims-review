@@ -11,7 +11,7 @@ import { sendFailure } from "../errors";
 import { validClaimParams } from "./validate";
 
 const POLL_MS = 200;
-const HEARTBEAT_EVERY = 15_000 / POLL_MS; // polls between `: hb` comments
+const HEARTBEAT_EVERY = 3000 / POLL_MS; // polls between `event: hb` messages
 
 // See LastEventId in shared/contract/routes.ts for why the replay id is part of the event id.
 const eventId = (replayId: string, event: RunEvent) => `${replayId}.${event.seq}`;
@@ -21,7 +21,8 @@ export const eventRoutes = (service: ClaimsService, replay: Replay) =>
     const { claimId } = c.req.valid("param");
     const exists = service.exists(claimId);
     if (!exists.ok) return sendFailure(c, exists);
-    const header = c.req.header("Last-Event-ID");
+    // EventSource can't set headers, so a stream the browser reopens by hand passes the id in the URL.
+    const header = c.req.header("Last-Event-ID") ?? c.req.query("lastEventId");
 
     return streamSSE(c, async (stream) => {
       let open = true;
@@ -63,7 +64,9 @@ export const eventRoutes = (service: ClaimsService, replay: Replay) =>
         const due = replay.due(claimId);
         for (const event of due.slice(sent)) await send(event);
         sent = due.length;
-        if (polls % HEARTBEAT_EVERY === 0) await stream.write(": hb\n\n");
+        // A real event, not a comment: EventSource can't see comments, and the browser's watchdog
+        // needs something to hear. No `id:`, so it never moves Last-Event-ID.
+        if (polls % HEARTBEAT_EVERY === 0) await stream.writeSSE({ event: "hb", data: "{}" });
       }
     });
   });

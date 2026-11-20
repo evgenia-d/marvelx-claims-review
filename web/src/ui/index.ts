@@ -12,6 +12,7 @@ export {
   IconCheck,
   IconChevron,
   IconPencil,
+  IconRetry,
   IconSwap,
   IconTriangle,
   IconUndo,

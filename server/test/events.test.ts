@@ -94,6 +94,39 @@ describe("GET /api/claims/:claimId/events", () => {
     await reader.cancel();
   });
 
+  it("resumes after the lastEventId query parameter when no header is sent", async () => {
+    const { app, tick } = makeApp();
+    const replayId = LastEventId.parse(await currentId(app)).replay;
+    tick(10000);
+    const res = await app.request(`${url}?lastEventId=${encodeURIComponent(`${replayId}.5`)}`);
+    const reader = res.body!.getReader();
+    const expected = dueSeqs(10000).filter((s) => s > 5);
+    const { text } = await readUntil(reader, (t) => ids(t).length >= expected.length);
+    expect(ids(text)).toEqual(expected);
+    await reader.cancel();
+  });
+
+  it("prefers the Last-Event-ID header over the lastEventId query parameter", async () => {
+    const { app, tick } = makeApp();
+    const replayId = LastEventId.parse(await currentId(app)).replay;
+    tick(10000);
+    const res = await app.request(`${url}?lastEventId=${encodeURIComponent("garbage")}`, { headers: { "Last-Event-ID": `${replayId}.5` } });
+    const reader = res.body!.getReader();
+    const expected = dueSeqs(10000).filter((s) => s > 5);
+    const { text } = await readUntil(reader, (t) => ids(t).length >= expected.length);
+    expect(ids(text)).toEqual(expected);
+    await reader.cancel();
+  });
+
+  it("sends reset for a lastEventId query parameter from another replay", async () => {
+    const { app } = makeApp();
+    const reader = (await app.request(`${url}?lastEventId=${encodeURIComponent("otherreplay.5")}`)).body!.getReader();
+    const { text, ended } = await readUntil(reader, () => false);
+    expect(text).toContain("event: reset");
+    expect(ids(text)).toEqual([]);
+    expect(ended).toBe(true);
+  });
+
   it("sends the duplicate seq 42 as the fixture has it", async () => {
     const { app, tick } = makeApp();
     tick(60000);
@@ -209,14 +242,16 @@ describe("GET /api/claims/:claimId/events", () => {
     expect(text).not.toContain("event: synced");
   });
 
-  it("sends a heartbeat comment every 15 s", async () => {
+  it("sends a heartbeat event every 3 s", async () => {
     const { app } = makeApp();
     const opened = Date.now(); // fake time: moves only with the fake timers
     const reader = (await app.request(url)).body!.getReader();
-    const { text } = await readUntil(reader, (t) => t.includes(": hb"));
-    // The first `: hb` arrives on the poll at 15 s, not before about 14.8 s.
-    expect(Date.now() - opened).toBeGreaterThanOrEqual(14800);
-    expect(text.match(/^: hb$/gm)).toHaveLength(1);
+    const { text } = await readUntil(reader, (t) => t.includes("event: hb"));
+    // The first one arrives on the poll at 3 s, not before about 2.8 s.
+    expect(Date.now() - opened).toBeGreaterThanOrEqual(2800);
+    const block = text.split("\n\n").find((x) => x.includes("event: hb")) ?? "";
+    expect(block).toContain("data: {}");
+    expect(block).not.toContain("id:");
     await reader.cancel();
   });
 });

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router";
+import { useParams, useSearchParams } from "react-router";
 import { ClaimParams, type ClaimDetail } from "@shared/contract";
-import { groupFields } from "@shared/domain";
+import { failedStep, groupFields } from "@shared/domain";
 import { ApiFailure } from "../../api/http";
 import { useClaim } from "../../api/queries";
 import {
@@ -15,10 +15,10 @@ import {
 } from "../../api/runStore";
 import type { FieldView, RunState } from "@shared/domain";
 import { useRunSubscription } from "../../api/subscribe";
-import { Button, Message } from "../../ui";
-import { queuePath } from "../queue/search";
+import { Message } from "../../ui";
 import { AgentStepLine } from "./AgentStepLine";
 import { ClaimHeader } from "./ClaimHeader";
+import { RunFailedLine } from "./RunFailedLine";
 import { DocumentPanel } from "./DocumentPanel";
 import { FieldCard } from "./FieldCard";
 import { FieldFilter, type FilterId } from "./FieldFilter";
@@ -26,6 +26,7 @@ import { FieldRow } from "./FieldRow";
 import { FieldSection } from "./FieldSection";
 import { nextFieldId } from "./nextField";
 import { ReviewLayout } from "./ReviewLayout";
+import { ClaimNotFound, ClaimUnavailable, WaitingForAgent } from "./ReviewStates";
 import { ReviewSkeleton } from "./ReviewSkeleton";
 import { SummaryView } from "./SummaryView";
 import { useFieldViews } from "./useFieldViews";
@@ -38,51 +39,22 @@ export function ReviewPage() {
   return <ReviewClaim key={params.data.claimId} claimId={params.data.claimId} />;
 }
 
-function ClaimNotFound({ claimId }: { claimId: string }) {
-  const navigate = useNavigate();
-  return (
-    <main>
-      <Message
-        headline="Claim not found"
-        body={`There is no claim ${claimId}.`}
-        action={
-          <Button variant="secondary" autoFocus onClick={() => navigate(queuePath())}>
-            Back to queue
-          </Button>
-        }
-      />
-    </main>
-  );
-}
-
 function ReviewClaim({ claimId }: { claimId: string }) {
   const claim = useClaim(claimId);
   // The stream starts with the claim request, not after it. Until its backlog is in, the run store
   // is partial (or empty, which reads as "not started"), so the screen waits for both and then
   // shows the run as it is now, in one step.
-  useRunSubscription(claimId);
+  // A claim the server says doesn't exist has no stream to keep reopening.
+  useRunSubscription(claimId, !(claim.error instanceof ApiFailure && claim.error.status === 404));
   const synced = useSynced(claimId);
   // One skeleton from route open to synced: the same element in the same place, so it fills in
   // (claim id and claimant first) instead of being swapped for another loading layout.
-  if (claim.isPending) return <ReviewSkeleton detail={undefined} />;
+  if (claim.isPending) return <ReviewSkeleton claimId={claimId} detail={undefined} />;
   if (claim.isError) {
     if (claim.error instanceof ApiFailure && claim.error.status === 404) return <ClaimNotFound claimId={claimId} />;
-    return (
-      <main>
-        <Message
-          error
-          headline="Can't reach the server"
-          body="Check your connection, then try again."
-          action={
-            <Button variant="primary" autoFocus onClick={() => void claim.refetch()}>
-              Try again
-            </Button>
-          }
-        />
-      </main>
-    );
+    return <ClaimUnavailable claimId={claimId} error={claim.error} onRetry={() => void claim.refetch()} />;
   }
-  if (!synced) return <ReviewSkeleton detail={claim.data} />;
+  if (!synced) return <ReviewSkeleton claimId={claimId} detail={claim.data} />;
   return <ReviewContent detail={claim.data} />;
 }
 
@@ -151,6 +123,9 @@ function ReviewContent({ detail }: { detail: ClaimDetail }) {
   const latestField = fieldOrder.at(-1);
   const readingGroup = meta.status === "running" ? groups.find((g) => latestField && g.field_ids.includes(latestField))?.name : undefined;
   const anyShown = ordered.some(shows);
+  const failed = failedStep(meta);
+  // What a failed run never got to, said under the fields; the filter never hides it.
+  const notCheckedText = failed ? detail.not_checked[failed.step_id] : undefined;
   const openView = openId === undefined ? undefined : byId.get(openId);
   // After a decision is saved: the next field still to decide that the filter shows, below the
   // current one, then from the top. With none left, the screen stays on the decided field.
@@ -165,8 +140,15 @@ function ReviewContent({ detail }: { detail: ClaimDetail }) {
 
   return (
     <ReviewLayout
-      header={<ClaimHeader detail={detail} views={views} />}
-      steps={<AgentStepLine steps={meta.steps} error={meta.error} notChecked={detail.not_checked} />}
+      header={<ClaimHeader detail={detail} views={views} failed={failed} />}
+      steps={
+        <>
+          {meta.status === "failed" && meta.error && (
+            <RunFailedLine error={meta.error} stepLabel={failed?.label} notChecked={detail.not_checked} />
+          )}
+          <AgentStepLine steps={meta.steps} status={meta.status} error={meta.error} notChecked={detail.not_checked} />
+        </>
+      }
       list={
         <div className="flex flex-col gap-3 p-4">
           <FieldFilter value={filter} onChange={setFilter} counts={counts} />
@@ -193,6 +175,15 @@ function ReviewContent({ detail }: { detail: ClaimDetail }) {
               })}
             </FieldSection>
           ))}
+          {views.length === 0 && <p className="px-2 text-sm text-ink-3">No fields yet</p>}
+          {notCheckedText && (
+            <FieldSection name="Not checked" reading={false} hidden={false}>
+              <li className="px-2 py-1">
+                <p className="text-base text-ink-2">{notCheckedText.charAt(0).toUpperCase() + notCheckedText.slice(1)}</p>
+                <p className="text-sm text-ink-3">{failed?.label ?? "The run"} failed before these were checked.</p>
+              </li>
+            </FieldSection>
+          )}
           {views.length > 0 && !anyShown && (
             <p className="px-2 text-sm text-ink-3">
               {filter === "needs_you" ? "No fields need you right now." : "Every field has a decision."}
@@ -259,7 +250,7 @@ function OpenField({ claimId, view, group, completedAt, onDecided, focusOnMount 
 
 function NoOpenField({ fieldId, runStatus }: { fieldId: string | undefined; runStatus: RunState["status"] }) {
   if (runStatus === "not_started") {
-    return <Message headline="Waiting for the agent to start" body="Fields appear here as the agent reads the documents." />;
+    return <WaitingForAgent />;
   }
   if (fieldId === undefined || runStatus === "running") {
     return <Message headline="No field open yet" body="Fields appear here as the agent reads the documents." />;
