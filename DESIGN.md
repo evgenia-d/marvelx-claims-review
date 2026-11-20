@@ -86,6 +86,7 @@ Canvas names map 1:1 to these, with the `--color-`, `--text-`, `--radius-`, `--s
   --tracking-label: 0.08em;    /* AI draft tag */
   --tracking-eyebrow: 0.12em;  /* mono uppercase section labels */
 
+  --radius-xs: 2px;  /* cited-text highlight */
   --radius-sm: 4px;  /* tags, kbd, active segment, skeleton bars */
   --radius-md: 8px;  /* buttons, icon buttons, value box, input, rows, quote card, document paper, alerts */
   --radius-lg: 12px; /* cards, frames */
@@ -118,7 +119,7 @@ Canvas names map 1:1 to these, with the `--color-`, `--text-`, `--radius-`, `--s
 | 24 | `6` | open field padding (laptop), document paper inset, details indent |
 | 32 / 40 / 48 | `8` / `10` / `12` | page and section gaps |
 
-Heights: tag 20 (`h-5`), decision pill 22 (`h-5.5`), chip 24 (`h-6`), segment button 28 (`h-7`), icon button and section header 32 (`h-8`), button and step line 36 (`h-9`), field row and details summary 40 (`h-10`), **every phone control 44 (`h-11`)**, pane top bar and phone action bar 48 (`h-12`), value box, input and phone row 52 (`h-13`), claim and phone header 56 (`h-14`). Strokes: 1px lines, 1.5px value box / input / ring glyph, 2px focus ring.
+Heights: tag 20 (`h-5`), decision pill 22 (`h-5.5`), chip 24 (`h-6`), segment button 28 (`h-7`), icon button and section header 32 (`h-8`), button and step line 36 (`h-9`), field row and details summary 40 (`h-10`), **every phone control 44 (`h-11`)**, pane top bar and phone action bar 48 (`h-12`), value box, input and phone row 52 (`h-13`), claim and phone header 56 (`h-14`). Strokes: 1px lines, 1.5px value box / input / ring glyph, 2px focus ring. The 1.5px box stroke is the `border-control` utility in `index.css` (Tailwind has no 1.5px border).
 
 ### Round 2 open items, settled
 
@@ -141,7 +142,7 @@ No claim, field, decision or run concepts. Props in, markup out. Names describe 
 
 | Primitive | Pattern | States and variants | Access |
 |---|---|---|---|
-| `Button` | button | `primary` (solid blue, one per area) · `secondary` (white, strong edge). Rest · hover · focus ring · pressed · disabled-with-reason (grey, stays focusable). Icon + one word. 36 laptop, 44–48 phone | `aria-disabled` + `aria-describedby` for the reason, never `disabled` |
+| `Button` | button | `primary` (solid blue, one per area) · `secondary` (white, strong edge). Rest · hover · focus ring · pressed · blocked (grey, stays focusable). Icon + one word. 36 laptop, 44–48 phone | blocked: `aria-disabled`, never `disabled`; the caller shows the reason as visible text (no tooltip on Button, owner 20 Nov) |
 | `IconButton` | icon button + tooltip | rest · hover (subtle fill) · focus. 32 / 36 laptop, 44 / 48 phone; optional 1px edge | `aria-label` and tooltip on every one |
 | `Badge` | static badge | shape `tag` (radius sm, 20 high, mono xs, no glyph inside) · `pill` (radius full, 22–24 high, sans sm 600, optional leading icon or mark). Tone `attn` (orange tint) · `you` (blue tint + you-line edge) · `plain` (subtle) · `outline` (surface + line edge) · `label` (subtle, uppercase, tracked). Never clickable | text carries the meaning; icons `aria-hidden` |
 | `StatusGlyph` | status icon | `ring` (grey, 1.5px) · `done` (blue circle, white check) · `attn` (orange circle, white !) · `error` (triangle, real errors only). 14 / 12 px | `aria-hidden`; the owner's label says it |
@@ -152,10 +153,10 @@ No claim, field, decision or run concepts. Props in, markup out. Names describe 
 | `Disclosure` | details / summary | closed by default; 40 / 48 summary, chevron turns | native `details` |
 | `ValueBox` | read-only value | tone `default` (white, strong edge) · `tint` (blue tint, you-line edge, blue text) · `muted` (ground, grey text). Size `num` (mono xl, 1 line) · `text` (mono lg, 2 lines) · `long` (Inter md, 4 lines + "Show all" / "Show less"). 52 min height; the input uses the same box and size | value is text, never a link |
 | `TextInput` | input (+ reason line) | same box and size as `ValueBox`; focus ring | visible label; Save / Cancel buttons (Enter submits the form) |
-| `Alert` | inline alert + action | attn tint, attn-line edge, attn text, optional action button. `layout="box"` (44 min, radius md) or `layout="band"` (full width, bottom edge) | `role="alert"` |
-| `Message` | empty state / error page | serif xl headline, one sentence, at most one action; optional triangle for errors | headline `h2`; action gets first focus |
+| `Alert` | inline alert + action | attn tint, attn-line edge, attn text, optional leading icon, optional action slot (the caller's Button). `layout="box"` (44 min, radius md) or `layout="band"` (full width, bottom edge) | `role="alert"` |
+| `Message` | empty state / error page | serif xl headline, one sentence, at most one action (a slot: the caller's Button); optional triangle for errors | headline `h2`; a page-level message's action gets first focus (`autoFocus` from the caller), an inline empty state never takes focus |
 | `Skeleton` | skeleton loader | bars in `subtle`, radius sm, pulse | one hidden "Loading…" text from the owner |
-| `Tooltip` | tooltip | on hover and focus, one short sentence, `shadow-lift` | `role="tooltip"`, `aria-describedby` |
+| `Tooltip` | tooltip (IconButton only) | on hover and focus, one short sentence, `shadow-lift`; hides on Escape, blur, mouseleave | `role="tooltip"`, `aria-hidden` (the button's `aria-label` carries the text) |
 | `Highlight` | text highlight | `cite` background, ink text, 2px radius | `mark` |
 | `Busy` | busy mark | 6px pulsing dot (live, reading, reconnecting); stops under reduced motion | decorative; text beside it |
 | `Table` | data table | header row in eyebrow style, 52px rows, hover, whole row clickable; below `lg` rows restyle as cards (same markup) | real `table` with `th` |
@@ -169,7 +170,7 @@ No claim, field, decision or run concepts. Props in, markup out. Names describe 
 | `ReviewLayout` | grid / push nav | laptop three panes; phone list → field. Landmarks: nav "Fields", main, aside "Source document" |
 | `ClaimHeader` | IconButton, Badge, ProgressBar, CompleteReview | "CLM-2026-004817" (h1) · "Sanne de Vries · Motor" · run chip · current step · "5 of 41 decided". Phone: two lines, progress and Complete in the footer |
 | `RunStatusChip` | Badge (pill, outline) | "Queued" · "Running" (live dot) · "Needs review" · "Run failed" (triangle) · "Reviewed" (blue check) |
-| `CompleteReview` | Button | blocked: "Complete review · 36 left", "· agent working", "· not started"; tooltip "36 fields still need a decision". Ready: primary "Complete review" |
+| `CompleteReview` | Button | blocked: "Complete review · 36 left", "· agent working", "· not started"; the reason as visible text beside it ("36 fields still need a decision"), linked with `aria-describedby`. Ready: primary "Complete review" |
 | `AgentStepLine` | Disclosure, StatusGlyph | collapsed: latest note in one line ("Read claimant statement · Statement contains text…", "No notes"), "Agent steps 5 of 6"; open: `AgentSteps` |
 | `AgentSteps` | ordered list | done (grey check) · note (orange !) · running (live dot) · failed (triangle) |
 | `RunFailedLine` | Alert band | "Look up policy failed · The policy service did not respond within 10 seconds. Not checked: policy cover and excess." (no "Retry run": T8 cut 19 Nov) |

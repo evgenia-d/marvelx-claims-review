@@ -50,6 +50,7 @@
   --tracking-label: 0.08em;    /* AI draft tag */
   --tracking-eyebrow: 0.12em;  /* mono uppercase section labels */
 
+  --radius-xs: 2px;  /* cited-text highlight */
   --radius-sm: 4px;  /* tags, kbd, active segment, skeleton bars */
   --radius-md: 8px;  /* buttons, icon buttons, value box, input, rows, quote card, document paper, alerts */
   --radius-lg: 12px; /* cards, frames */
@@ -77,7 +78,16 @@
   }
 }
 
+/* Tailwind v4 has no 1.5px border width. Value box, input and ring glyph use 1.5px strokes (DESIGN.md). */
+@utility border-control {
+  border-width: 1.5px;
+}
+
 @layer base {
+  /* Safari still draws its own triangle on summary; the Disclosure chevron replaces it. */
+  summary::-webkit-details-marker {
+    display: none;
+  }
   body {
     @apply bg-ground font-sans text-base text-ink tabular-nums;
   }

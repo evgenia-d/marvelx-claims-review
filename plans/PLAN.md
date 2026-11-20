@@ -356,14 +356,14 @@ Test helpers in `shared/domain/test-events.ts`: `extracted(seq, field_id, value,
 **Files:** Create `web/src/ui/{Button,IconButton,Badge,StatusGlyph,SegmentedControl,Select,ProgressBar,ListRow,Disclosure,ValueBox,TextInput,Alert,Message,Skeleton,Tooltip,Highlight,Busy,Table}.tsx`, `web/src/ui/icons.tsx` (inline SVG: check, bang, triangle, chevron, pencil, swap, undo, back, arrow), `web/src/ui/index.ts`. No `/dev/ui` showcase page (cut 19 Nov): primitives are checked on the screens that use them.
 
 **Interfaces:** Exactly the 18 primitives (19 minus `CollapsibleHeader`, cut 19 Nov), variants and access rules in DESIGN.md "`web/src/ui/`: primitives". Variant props are string unions named for looks (`tone`, `variant`, `size`, `layout`). Key signatures later slices rely on:
-- `Button({ variant: "primary" | "secondary", disabledReason?: string, icon?, children, ...button })`: with `disabledReason` it renders `aria-disabled="true"`, ignores clicks, and links the reason via `aria-describedby` to a `Tooltip`.
+- `Button({ variant: "primary" | "secondary", icon?, children, ...button })`: a plain button, no Tooltip (owner, 20 Nov). A blocked action passes `aria-disabled="true"`: the button stays focusable and ignores clicks and form submits. The reason is shown by the caller (CompleteReview: visible text beside the button), never `disabled`.
 - `Badge({ shape: "tag" | "pill", tone: "attn" | "you" | "plain" | "outline" | "label", icon?, children })`
 - `StatusGlyph({ kind: "ring" | "done" | "attn" | "error", size?: 12 | 14 })`
 - `ListRow({ glyph, label, value, empty?: boolean, tone?: "you", trailing?, selected?: boolean, arrive?: boolean, onSelect, "aria-label" })`
 - `ValueBox({ tone: "default" | "tint" | "muted", size: "num" | "text" | "long", children })`; `TextInput` takes the same `size`.
 - `SegmentedControl({ label, items: { id, label, count?, glyph? }[], value, onChange })`: a labelled group of `button`s with `aria-pressed`, as DESIGN.md says; Tab moves between them, no arrow-key handling.
-- `Tooltip({ content, align?: "start" | "end", children })`: `role="tooltip"` linked with `aria-describedby`; shows on hover and focus, hides on Escape and blur; placed under the trigger with no gap (so the pointer can move onto it); `align` set by the caller ("end" for header buttons on the right). No collision logic. If it gets fiddly, stop and ask before adding a library.
-- `Alert({ layout: "box" | "band", action?: { label, onClick }, children })`; `Message({ headline, body, action?, error?: boolean })`.
+- `Tooltip({ content, align?: "start" | "end", children })`: used by `IconButton` only (owner, 20 Nov). Shows on hover and focus, hides on Escape (anywhere), blur and mouseleave; placed under the trigger with no gap (so the pointer can move onto it); `align` set by the caller ("end" for header buttons on the right). The bubble is `role="tooltip"` and `aria-hidden`, because the IconButton's `aria-label` already says the same text. No collision logic, no library.
+- `Alert({ layout: "box" | "band", icon?, action?: ReactNode, children })`; `Message({ headline, body, action?: ReactNode, error?: boolean })`. `action` is a slot: the caller passes the `Button` (and `autoFocus` on it for a page-level message; never for an inline empty state). Owner, 20 Nov.
 
 Everything is native, no headless library: `Select` is `<select>` (the phone's own picker), `Disclosure` is `<details>`, `ProgressBar` is a `div` with `role="progressbar"`, `Table` is `table`, and the hidden "Loading…" text uses `sr-only`.
 
